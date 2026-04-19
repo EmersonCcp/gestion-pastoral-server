@@ -6,10 +6,13 @@ import {
   UpdateDateColumn,
   ManyToOne,
   OneToMany,
+  ManyToMany,
+  JoinTable,
   JoinColumn,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { Movimiento } from '../../movimientos/entities/movimiento.entity';
+import { Libro } from '../../libros/entities/libro.entity';
 
 @Entity('grupos')
 export class Grupo {
@@ -66,6 +69,18 @@ export class Grupo {
 
   @OneToMany(() => Grupo, (g) => g.parent)
   subgrupos: Grupo[];
+
+  @ApiProperty({
+    description: 'Libros asignados al grupo',
+    type: () => [Libro],
+  })
+  @ManyToMany(() => Libro, (l) => l.grupos)
+  @JoinTable({
+    name: 'grupos_libros',
+    joinColumn: { name: 'grupo_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'libro_id', referencedColumnName: 'id' },
+  })
+  libros: Libro[];
 
   @ApiProperty({
     description: 'Fecha de creación',

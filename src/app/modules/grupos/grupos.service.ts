@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository } from 'typeorm';
+import { ILike, Repository, In } from 'typeorm';
 import { Grupo } from './entities/grupo.entity';
+import { Libro } from '../libros/entities/libro.entity';
 import { CreateGrupoDto } from './dto/create-grupo.dto';
 import { UpdateGrupoDto } from './dto/update-grupo.dto';
 import {
@@ -20,13 +21,21 @@ export class GruposService {
   constructor(
     @InjectRepository(Grupo)
     private repo: Repository<Grupo>,
+    @InjectRepository(Libro)
+    private libroRepo: Repository<Libro>,
   ) {}
 
   async create(
     dto: CreateGrupoDto,
   ): Promise<ApiResponse<Grupo> | ApiErrorResponse> {
     try {
-      const data = this.repo.create(dto);
+      const { libro_ids, ...grupoData } = dto;
+      const data = this.repo.create(grupoData);
+      
+      if (libro_ids && libro_ids.length > 0) {
+        data.libros = await this.libroRepo.find({ where: { id: In(libro_ids) } });
+      }
+
       const saved = await this.repo.save(data);
       return buildSuccessResponse(saved, '/grupos');
     } catch (error) {
@@ -70,7 +79,7 @@ export class GruposService {
         order: { nombre: 'ASC' },
         skip: (page - 1) * per_page,
         take: per_page,
-        relations: ['movimiento', 'parent'],
+        relations: ['movimiento', 'parent', 'libros'],
       });
 
       return buildListResponse(
@@ -94,7 +103,7 @@ export class GruposService {
     try {
       const data = await this.repo.findOne({
         where: { id },
-        relations: ['movimiento', 'parent', 'subgrupos'],
+        relations: ['movimiento', 'parent', 'subgrupos', 'libros'],
       });
 
       if (!data) {
@@ -130,7 +139,15 @@ export class GruposService {
         );
       }
 
-      Object.assign(existing, dto);
+      const { libro_ids, ...grupoData } = dto;
+      Object.assign(existing, grupoData);
+
+      if (libro_ids) {
+        existing.libros = await this.libroRepo.find({ where: { id: In(libro_ids) } });
+      } else if (libro_ids === null) {
+        existing.libros = [];
+      }
+
       const updated = await this.repo.save(existing);
 
       return buildSuccessResponse(updated, `/grupos/${id}`);

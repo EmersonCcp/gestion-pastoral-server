@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsNotEmpty,
   IsInt,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -47,4 +48,14 @@ export class CreateGrupoDto {
   @IsBoolean()
   @IsOptional()
   estado?: boolean;
+
+  @ApiPropertyOptional({
+    example: [1, 2],
+    description: 'IDs de los libros asignados al grupo',
+    type: [Number]
+  })
+  @IsArray()
+  @IsInt({ each: true })
+  @IsOptional()
+  libro_ids?: number[];
 }
