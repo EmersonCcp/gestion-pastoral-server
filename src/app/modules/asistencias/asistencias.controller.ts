@@ -33,7 +33,11 @@ export class AsistenciasController {
     @Query('movimiento_id') movimiento_id?: number,
     @User() user?: any,
   ) {
-    return this.service.findAll(page, per_page, { grupo_id, periodo_id, movimiento_id }, user);
+    return this.service.findAll(page, per_page, { 
+      grupo_id: grupo_id ? Number(grupo_id) : undefined, 
+      periodo_id: periodo_id ? Number(periodo_id) : undefined, 
+      movimiento_id: movimiento_id ? Number(movimiento_id) : undefined 
+    }, user);
   }
 
   @Get(':id')
@@ -61,5 +65,21 @@ export class AsistenciasController {
   @ApiOperation({ summary: 'Obtener resumen de asistencias de una persona' })
   getPersonaSummary(@Param('personaId') personaId: string) {
     return this.service.getPersonaSummary(+personaId);
+  }
+
+  @Get('historial-persona/:personaId')
+  @ApiOperation({ summary: 'Obtener historial de asistencias de una persona paginado' })
+  getPersonaHistory(
+    @Param('personaId') personaId: string,
+    @Query('page') page?: number,
+    @Query('per_page') per_page?: number,
+  ) {
+    return this.service.getPersonaHistory(+personaId, page, per_page);
+  }
+
+  @Post('reporte')
+  @ApiOperation({ summary: 'Obtener detalle para reporte de múltiples asistencias' })
+  getReportDetails(@Body() body: { ids: number[] }) {
+    return this.service.getReportDetails(body.ids);
   }
 }

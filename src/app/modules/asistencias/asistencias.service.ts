@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Asistencia } from './entities/asistencia.entity';
 import { AsistenciaPersona, EstadoAsistencia } from './entities/asistencia-persona.entity';
 import { CreateAsistenciaDto, UpdateAsistenciaDto } from './dto/asistencias.dto';
@@ -71,8 +71,8 @@ export class AsistenciasService {
       if (filters.grupo_id) where.grupo_id = filters.grupo_id;
       if (filters.periodo_id) where.periodo_id = filters.periodo_id;
 
-      if (!user?.isSuperAdmin) {
-        if (filters.movimiento_id) where.movimiento_id = filters.movimiento_id;
+      if (filters.movimiento_id) {
+        where.movimiento_id = filters.movimiento_id;
       }
 
       const [data, total] = await this.repo.findAndCount({
@@ -105,7 +105,7 @@ export class AsistenciasService {
     try {
       const data = await this.repo.findOne({
         where: { id },
-        relations: ['grupo', 'periodo', 'personas', 'personas.persona', 'personas.persona.tipoPersona'],
+        relations: ['grupo', 'periodo', 'personas', 'personas.persona', 'personas.persona.tiposPersonas'],
       });
 
       if (!data) {
@@ -209,6 +209,51 @@ export class AsistenciasService {
       return buildSuccessResponse(summary, `/asistencias/summary/${personaId}`);
     } catch (error) {
       return buildErrorResponse('INTERNAL_ERROR', error.message, `/asistencias/summary/${personaId}`);
+    }
+  }
+
+  async getPersonaHistory(
+    personaId: number,
+    page = 1,
+    per_page = 10,
+  ): Promise<ApiListResponse<AsistenciaPersona> | ApiErrorResponse> {
+    try {
+      const [data, total] = await this.personaAsistenciaRepo.findAndCount({
+        where: { persona_id: personaId },
+        relations: ['asistencia', 'asistencia.grupo', 'asistencia.periodo'],
+        order: { asistencia: { fecha: 'DESC' } },
+        skip: (page - 1) * per_page,
+        take: per_page,
+      });
+
+      return buildListResponse(
+        data,
+        total,
+        page,
+        per_page,
+        {},
+        `/asistencias/historial-persona/${personaId}`,
+      );
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message,
+        `/asistencias/historial-persona/${personaId}`,
+      );
+    }
+  }
+
+  async getReportDetails(ids: number[]): Promise<ApiResponse<Asistencia[]> | ApiErrorResponse> {
+    try {
+      const data = await this.repo.find({
+        where: { id: In(ids) },
+        relations: ['grupo', 'periodo', 'personas', 'personas.persona'],
+        order: { fecha: 'ASC' }
+      });
+
+      return buildSuccessResponse(data, '/asistencias/reporte');
+    } catch (error) {
+      return buildErrorResponse('INTERNAL_ERROR', error.message, '/asistencias/reporte');
     }
   }
 }

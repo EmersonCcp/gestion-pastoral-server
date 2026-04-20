@@ -4,7 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
-  OneToMany,
+  ManyToMany,
   ManyToOne,
   JoinColumn,
   Index,
@@ -37,7 +37,7 @@ export class TipoPersona {
   @Column({ type: 'text', nullable: true })
   descripcion: string;
 
-  @OneToMany(() => Persona, (p) => p.tipoPersona)
+  @ManyToMany(() => Persona, (p) => p.tiposPersonas)
   personas: Persona[];
 
   @ApiProperty({

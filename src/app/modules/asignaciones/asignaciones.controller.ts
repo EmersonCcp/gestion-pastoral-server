@@ -46,7 +46,12 @@ export class AsignacionesController {
     @Query('persona_id') persona_id?: number,
     @User() user?: any,
   ) {
-    return this.service.findAll(page, per_page, { grupo_id, periodo_id, movimiento_id, persona_id }, user);
+    return this.service.findAll(page, per_page, { 
+      grupo_id: grupo_id ? Number(grupo_id) : undefined, 
+      periodo_id: periodo_id ? Number(periodo_id) : undefined, 
+      movimiento_id: movimiento_id ? Number(movimiento_id) : undefined,
+      persona_id: persona_id ? Number(persona_id) : undefined
+    }, user);
   }
 
   @Get(':id')

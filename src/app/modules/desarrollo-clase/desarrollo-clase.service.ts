@@ -50,13 +50,14 @@ export class DesarrolloClaseService {
       const asistencia = (asistenciaRes as ApiResponse<any>).data;
 
       // 3. Create DesarrolloClase
-      const temas = await this.temaRepo.findByIds(dto.temas_ids);
+      const temasIds = Array.isArray(dto.temas_ids) ? dto.temas_ids : [];
+      const temas = temasIds.length > 0 ? await this.temaRepo.findByIds(temasIds) : [];
       
       const session = this.repo.create({
         fecha: dto.fecha,
         observaciones: dto.observaciones,
         grupo_id: dto.grupo_id,
-        libro_id: dto.libro_id,
+        libro_id: (dto.libro_id === 'null' || dto.libro_id === null) ? null : Number(dto.libro_id),
         asistencia_id: asistencia.id,
         temas: temas
       });
@@ -110,13 +111,15 @@ export class DesarrolloClaseService {
       const existing = await this.repo.findOne({ where: { id } });
       if (!existing) return buildErrorResponse('NOT_FOUND', 'Registro no encontrado', `/desarrollo-clases/${id}`);
       
-      const asistencia_id = existing.asistencia_id;
+      const asistenciaId = existing.asistencia_id;
       
+      // We delete the class first. Since it has a FK to Asistencia (nullable),
+      // this should be fine.
       await this.repo.remove(existing);
       
       // Cleanup associated attendance
-      if (asistencia_id) {
-        await this.asistenciasService.remove(asistencia_id);
+      if (asistenciaId) {
+        await this.asistenciasService.remove(asistenciaId);
       }
       
       return buildSuccessResponse(null, `/desarrollo-clases/${id}`, 'Registro eliminado');
@@ -138,7 +141,7 @@ export class DesarrolloClaseService {
       if (!existing) throw new Error('Registro no encontrado');
 
       // 1. Update Asistencia if provided
-      if (dto.asistencia) {
+      if (dto.asistencia && existing.asistencia_id) {
         const asistenciaRes = await this.asistenciasService.update(existing.asistencia_id, dto.asistencia);
         if (!asistenciaRes.ok) throw new Error('Error al actualizar asistencia');
       }
@@ -146,6 +149,11 @@ export class DesarrolloClaseService {
       // 2. Update Basic Fields
       if (dto.fecha) existing.fecha = dto.fecha;
       if (dto.observaciones !== undefined) existing.observaciones = dto.observaciones;
+      
+      // Update Libro ID (handle potential 'null' string or null value)
+      if (dto.libro_id !== undefined) {
+        existing.libro_id = (dto.libro_id === 'null' || dto.libro_id === null) ? null : Number(dto.libro_id);
+      }
       
       // 3. Update Temas if provided
       if (dto.temas_ids) {

@@ -4,6 +4,8 @@ import {
   IsOptional,
   IsEmail,
   IsInt,
+  IsArray,
+  IsDateString,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -68,17 +70,19 @@ export class CreatePersonaDto {
     example: '1990-05-15',
     description: 'Fecha de nacimiento',
   })
-  @IsString()
+  @IsDateString()
   @IsOptional()
   fecha_nacimiento?: string;
 
   @ApiProperty({
-    example: 1,
-    description: 'ID de la persona (tipo_persona_id)',
+    example: [1, 2],
+    description: 'IDs de los tipos de persona asignados',
+    type: [Number],
   })
-  @IsInt()
+  @IsArray()
+  @IsInt({ each: true })
   @IsNotEmpty()
-  tipo_persona_id: number;
+  tipos_personas_ids: number[];
 
   @ApiProperty({
     example: 1,

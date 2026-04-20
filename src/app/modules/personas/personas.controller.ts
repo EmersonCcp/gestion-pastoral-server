@@ -12,6 +12,7 @@ import {
 import { PersonasService } from './personas.service';
 import { CreatePersonaDto } from './dto/create-persona.dto';
 import { UpdatePersonaDto } from './dto/update-persona.dto';
+import { CreatePersonaRelacionDto } from './dto/persona-relacion.dto';
 import { ApiOperation, ApiParam, ApiResponse, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from 'src/shared/decorators/permissions.decorator';
 import { User } from 'src/shared/decorators/user.decorator';
@@ -87,5 +88,23 @@ export class PersonasController {
   @ApiOperation({ summary: 'Eliminar una persona por ID' })
   remove(@Param('id') id: number) {
     return this.service.remove(id);
+  }
+
+  @Post('relaciones')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['personas.update', 'personas.*'])
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Agregar una relación de parentesco' })
+  addRelacion(@Body() dto: CreatePersonaRelacionDto) {
+    return this.service.addRelacion(dto);
+  }
+
+  @Delete('relaciones/:id')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['personas.update', 'personas.*'])
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Eliminar una relación de parentesco' })
+  removeRelacion(@Param('id') id: number) {
+    return this.service.removeRelacion(id);
   }
 }

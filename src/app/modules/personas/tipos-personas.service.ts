@@ -47,10 +47,8 @@ export class TiposPersonasService {
     try {
       const query: any = {};
 
-      if (!user?.isSuperAdmin) {
-        if (filters.movimiento_id) {
-          query.movimiento_id = filters.movimiento_id;
-        }
+      if (filters.movimiento_id) {
+        query.movimiento_id = filters.movimiento_id;
       }
 
       if (filters.nombre) {

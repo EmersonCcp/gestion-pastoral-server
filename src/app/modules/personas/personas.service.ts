@@ -4,6 +4,8 @@ import { ILike, Repository } from 'typeorm';
 import { Persona } from './entities/persona.entity';
 import { CreatePersonaDto } from './dto/create-persona.dto';
 import { UpdatePersonaDto } from './dto/update-persona.dto';
+import { CreatePersonaRelacionDto } from './dto/persona-relacion.dto';
+import { PersonaRelacion } from './entities/persona-relacion.entity';
 import {
   ApiErrorResponse,
   ApiListResponse,
@@ -20,13 +22,21 @@ export class PersonasService {
   constructor(
     @InjectRepository(Persona)
     private repo: Repository<Persona>,
+    @InjectRepository(PersonaRelacion)
+    private relacionRepo: Repository<PersonaRelacion>,
   ) { }
 
   async create(
     dto: CreatePersonaDto,
   ): Promise<ApiResponse<Persona> | ApiErrorResponse> {
     try {
-      const data = this.repo.create(dto);
+      const { tipos_personas_ids, ...rest } = dto;
+      const data = this.repo.create(rest);
+
+      if (tipos_personas_ids && tipos_personas_ids.length > 0) {
+        data.tiposPersonas = tipos_personas_ids.map(id => ({ id } as any));
+      }
+
       const saved = await this.repo.save(data);
       return buildSuccessResponse(saved, '/personas');
     } catch (error) {
@@ -52,41 +62,35 @@ export class PersonasService {
     user?: any,
   ): Promise<ApiListResponse<Persona> | ApiErrorResponse> {
     try {
-      const query: any = {};
+      const queryBuilder = this.repo.createQueryBuilder('persona')
+        .leftJoinAndSelect('persona.tiposPersonas', 'tipo')
+        .skip((page - 1) * per_page)
+        .take(per_page)
+        .orderBy('persona.nombre', 'ASC')
+        .addOrderBy('persona.apellido', 'ASC');
 
-      if (!user?.isSuperAdmin) {
-        if (filters.movimiento_id) {
-          query.movimiento_id = filters.movimiento_id;
-        }
+      if (filters.movimiento_id) {
+        queryBuilder.andWhere('persona.movimiento_id = :movId', { movId: filters.movimiento_id });
       }
 
       if (filters.nombre) {
-        query.nombre = ILike(`%${filters.nombre}%`);
+        queryBuilder.andWhere('persona.nombre ILIKE :nombre', { nombre: `%${filters.nombre}%` });
       }
 
       if (filters.apellido) {
-        query.apellido = ILike(`%${filters.apellido}%`);
+        queryBuilder.andWhere('persona.apellido ILIKE :apellido', { apellido: `%${filters.apellido}%` });
       }
 
       if (filters.documento) {
-        query.documento = ILike(`%${filters.documento}%`);
+        queryBuilder.andWhere('persona.documento ILIKE :doc', { doc: `%${filters.documento}%` });
       }
 
       if (filters.tipo_persona_id) {
-        query.tipo_persona_id = filters.tipo_persona_id;
+        // Filtramos por personas que tengan el ID especificado en su lista de tipos
+        queryBuilder.andWhere('tipo.id = :tipoId', { tipoId: filters.tipo_persona_id });
       }
 
-      if (filters.movimiento_id) {
-        query.movimiento_id = filters.movimiento_id;
-      }
-
-      const [data, total] = await this.repo.findAndCount({
-        where: query,
-        order: { apellido: 'ASC', nombre: 'ASC' },
-        skip: (page - 1) * per_page,
-        take: per_page,
-        relations: ['tipoPersona'],
-      });
+      const [data, total] = await queryBuilder.getManyAndCount();
 
       return buildListResponse(
         data,
@@ -109,7 +113,13 @@ export class PersonasService {
     try {
       const data = await this.repo.findOne({
         where: { id },
-        relations: ['tipoPersona'],
+        relations: [
+          'tiposPersonas', 
+          'relaciones', 
+          'relaciones.pariente', 
+          'parienteDe', 
+          'parienteDe.persona'
+        ],
       });
 
       if (!data) {
@@ -135,7 +145,10 @@ export class PersonasService {
     dto: UpdatePersonaDto,
   ): Promise<ApiResponse<Persona> | ApiErrorResponse> {
     try {
-      const existing = await this.repo.findOne({ where: { id } });
+      const existing = await this.repo.findOne({ 
+        where: { id },
+        relations: ['tiposPersonas'] 
+      });
 
       if (!existing) {
         return buildErrorResponse(
@@ -145,7 +158,13 @@ export class PersonasService {
         );
       }
 
-      Object.assign(existing, dto);
+      const { tipos_personas_ids, ...rest } = dto;
+      Object.assign(existing, rest);
+
+      if (tipos_personas_ids) {
+        existing.tiposPersonas = tipos_personas_ids.map(id => ({ id } as any));
+      }
+
       const updated = await this.repo.save(existing);
 
       return buildSuccessResponse(updated, `/personas/${id}`);
@@ -190,6 +209,33 @@ export class PersonasService {
         error.message,
         `/personas/${id}`,
       );
+    }
+  }
+
+  async addRelacion(
+    dto: CreatePersonaRelacionDto,
+  ): Promise<ApiResponse<PersonaRelacion> | ApiErrorResponse> {
+    try {
+      const relacion = this.relacionRepo.create(dto);
+      const saved = await this.relacionRepo.save(relacion);
+      return buildSuccessResponse(saved, '/personas/relaciones');
+    } catch (error) {
+      return buildErrorResponse('INTERNAL_ERROR', error.message, '/personas/relaciones');
+    }
+  }
+
+  async removeRelacion(
+    id: number,
+  ): Promise<ApiResponse<null> | ApiErrorResponse> {
+    try {
+      const existing = await this.relacionRepo.findOne({ where: { id } });
+      if (!existing) {
+        return buildErrorResponse('NOT_FOUND', 'Relación no encontrada', '/personas/relaciones');
+      }
+      await this.relacionRepo.remove(existing);
+      return buildSuccessResponse(null, '/personas/relaciones', 'Relación eliminada');
+    } catch (error) {
+      return buildErrorResponse('INTERNAL_ERROR', error.message, '/personas/relaciones');
     }
   }
 }

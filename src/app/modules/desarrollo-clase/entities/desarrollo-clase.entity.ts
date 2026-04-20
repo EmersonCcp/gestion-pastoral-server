@@ -37,12 +37,12 @@ export class DesarrolloClase {
   @Column({ name: 'grupo_id' })
   grupo_id: number;
 
-  @ManyToOne(() => Libro)
+  @ManyToOne(() => Libro, { nullable: true })
   @JoinColumn({ name: 'libro_id' })
   libro: Libro;
 
-  @Column({ name: 'libro_id' })
-  libro_id: number;
+  @Column({ name: 'libro_id', nullable: true })
+  libro_id: number | null;
 
   @ApiProperty({ description: 'Temas desarrollados en la sesión' })
   @ManyToMany(() => Tema)
@@ -58,7 +58,7 @@ export class DesarrolloClase {
   asistencia: Asistencia;
 
   @Column({ name: 'asistencia_id', nullable: true })
-  asistencia_id: number;
+  asistencia_id: number | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

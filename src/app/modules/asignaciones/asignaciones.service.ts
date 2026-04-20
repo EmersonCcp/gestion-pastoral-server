@@ -50,7 +50,7 @@ export class AsignacionesService {
       const saved = await this.repo.save(asignacion);
       const withRelations = await this.repo.findOne({
         where: { id: saved.id },
-        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tipoPersona'],
+        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tiposPersonas'],
       });
       return buildSuccessResponse(withRelations!, '/asignaciones');
     } catch (error) {
@@ -76,8 +76,8 @@ export class AsignacionesService {
         where.personas = { id: filters.persona_id };
       }
       
-      if (!user?.isSuperAdmin) {
-        if (filters.movimiento_id) where.movimiento_id = filters.movimiento_id;
+      if (filters.movimiento_id) {
+        where.movimiento_id = filters.movimiento_id;
       }
 
       const [data, total] = await this.repo.findAndCount({
@@ -85,7 +85,7 @@ export class AsignacionesService {
         order: { createdAt: 'DESC' },
         skip: (page - 1) * per_page,
         take: per_page,
-        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tipoPersona'],
+        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tiposPersonas'],
       });
 
       return buildListResponse(data, total, page, per_page, filters, '/asignaciones');
@@ -102,7 +102,7 @@ export class AsignacionesService {
     try {
       const data = await this.repo.findOne({
         where: { id },
-        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tipoPersona'],
+        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tiposPersonas'],
       });
 
       if (!data) {

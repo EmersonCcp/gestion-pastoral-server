@@ -4,12 +4,17 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToMany,
+  JoinTable,
   ManyToOne,
   JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 import { TipoPersona } from './tipo-persona.entity';
 import { Movimiento } from '../../movimientos/entities/movimiento.entity';
+import { DocumentoPersona } from './documento-persona.entity';
+import { PersonaRelacion } from './persona-relacion.entity';
 
 @Entity('personas')
 export class Persona {
@@ -77,15 +82,37 @@ export class Persona {
   fecha_nacimiento: Date;
 
   @ApiProperty({
-    description: 'Tipo de persona (FK)',
-    type: () => TipoPersona,
+    description: 'Tipos de persona asignados',
+    type: [TipoPersona],
   })
-  @ManyToOne(() => TipoPersona, (t) => t.personas, { onDelete: 'SET NULL' })
-  @JoinColumn({ name: 'tipo_persona_id' })
-  tipoPersona: TipoPersona;
+  @ManyToMany(() => TipoPersona)
+  @JoinTable({
+    name: 'personas_tipos_asignados',
+    joinColumn: { name: 'persona_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'tipo_persona_id', referencedColumnName: 'id' },
+  })
+  tiposPersonas: TipoPersona[];
+  
+  @ApiProperty({
+    description: 'Documentos asociados a la persona',
+    type: [DocumentoPersona],
+  })
+  @OneToMany(() => DocumentoPersona, (doc) => doc.persona)
+  documentos: DocumentoPersona[];
 
-  @Column({ name: 'tipo_persona_id' })
-  tipo_persona_id: number;
+  @ApiProperty({
+    description: 'Relaciones de parentesco (mis parientes)',
+    type: [PersonaRelacion],
+  })
+  @OneToMany(() => PersonaRelacion, (rel) => rel.persona)
+  relaciones: PersonaRelacion[];
+
+  @ApiProperty({
+    description: 'Registros donde soy pariente de alguien',
+    type: [PersonaRelacion],
+  })
+  @OneToMany(() => PersonaRelacion, (rel) => rel.pariente)
+  parienteDe: PersonaRelacion[];
 
   @ApiProperty({
     description: 'Movimiento al que pertenece la persona',
