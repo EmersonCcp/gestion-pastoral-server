@@ -8,7 +8,10 @@ import {
   Put,
   UseGuards,
   Query,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { PersonasService } from './personas.service';
 import { CreatePersonaDto } from './dto/create-persona.dto';
 import { UpdatePersonaDto } from './dto/update-persona.dto';
@@ -106,5 +109,15 @@ export class PersonasController {
   @ApiOperation({ summary: 'Eliminar una relación de parentesco' })
   removeRelacion(@Param('id') id: number) {
     return this.service.removeRelacion(id);
+  }
+
+  @Post('upload-csv')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['personas.create', 'personas.*'])
+  @ApiBearerAuth('access-token')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Carga masiva de personas desde CSV' })
+  uploadCsv(@UploadedFile() file: Express.Multer.File) {
+    return this.service.bulkUpload(file);
   }
 }

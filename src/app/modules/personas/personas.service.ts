@@ -16,6 +16,9 @@ import {
   buildListResponse,
   buildSuccessResponse,
 } from 'src/shared/http/api-response.util';
+import csv from 'csv-parser';
+import { Readable } from 'stream';
+import { TipoPersona } from './entities/tipo-persona.entity';
 
 @Injectable()
 export class PersonasService {
@@ -24,6 +27,8 @@ export class PersonasService {
     private repo: Repository<Persona>,
     @InjectRepository(PersonaRelacion)
     private relacionRepo: Repository<PersonaRelacion>,
+    @InjectRepository(TipoPersona)
+    private tipoRepo: Repository<TipoPersona>,
   ) { }
 
   async create(
@@ -237,5 +242,110 @@ export class PersonasService {
     } catch (error) {
       return buildErrorResponse('INTERNAL_ERROR', error.message, '/personas/relaciones');
     }
+  }
+
+  async bulkUpload(file: Express.Multer.File): Promise<ApiResponse<any> | ApiErrorResponse> {
+    const results: any[] = [];
+    const stream = Readable.from(file.buffer);
+
+    return new Promise((resolve) => {
+      stream
+        .pipe(csv({
+          separator: ';',
+          mapHeaders: ({ header }) => header.trim().replace(/^\uFEFF/, ''),
+          mapValues: ({ value }) => value?.trim()
+        }))
+        .on('data', (data) => results.push(data))
+        .on('end', async () => {
+          try {
+            const result = await this.processCSV(results);
+            resolve(buildSuccessResponse(result, '/personas/bulk', 'Importación completada'));
+          } catch (error) {
+            resolve(buildErrorResponse('INTERNAL_ERROR', error.message, '/personas/bulk'));
+          }
+        });
+    });
+  }
+
+  private async processCSV(rows: any[]): Promise<{ imported: number; failed: number; errors: any[] }> {
+    let imported = 0;
+    let failed = 0;
+    const errors: any[] = [];
+
+    // Obtener tipos básicos
+    const tipoCatequizando = await this.tipoRepo.findOneBy({ nombre: 'Catequizando' });
+    const tipoPariente = await this.tipoRepo.findOneBy({ nombre: 'Pariente' });
+
+    for (const row of rows) {
+      try {
+        // 1. Crear Catequizando
+        const catequizando = await this.repo.save(this.repo.create({
+          nombre: row.nombre,
+          apellido: row.apellido,
+          fecha_nacimiento: this.parseDate(row.fecha_nacimiento),
+          direccion: row.direccion,
+          movimiento_id: 1, // Fijo por requerimiento
+          bautismo: row.bautismo?.toUpperCase() === 'SI',
+          primera_comunion: row.primera_comunion?.toUpperCase() === 'SI',
+          tiposPersonas: tipoCatequizando ? [tipoCatequizando] : [],
+        }));
+
+        // 2. Procesar Parientes
+        for (let i = 1; i <= 3; i++) {
+          const pNombre = row[`pariente${i}_nombre`]?.trim();
+          const pParentesco = row[`pariente${i}_parentesco`]?.trim();
+          const pTelefono = row[`pariente${i}_telefono`]?.trim();
+
+          if (pNombre) {
+            // Separar nombre y apellido si es posible (asumimos que el primer espacio divide)
+            const [nombre, ...apellidos] = pNombre.split(' ');
+            const apellido = apellidos.join(' ') || 'S/A';
+
+            const pariente = await this.repo.save(this.repo.create({
+              nombre,
+              apellido,
+              telefono: pTelefono,
+              movimiento_id: 1,
+              tiposPersonas: tipoPariente ? [tipoPariente] : [],
+            }));
+
+            await this.relacionRepo.save(this.relacionRepo.create({
+              persona_id: catequizando.id,
+              pariente_id: pariente.id,
+              parentesco: this.mapParentesco(pParentesco),
+            }));
+          }
+        }
+        imported++;
+      } catch (err) {
+        failed++;
+        errors.push({
+          fila: rows.indexOf(row) + 2,
+          nombre: row.nombre || 'Desconocido',
+          error: err.message
+        });
+        console.error('Error procesando fila:', row, err);
+      }
+    }
+    return { imported, failed, errors };
+  }
+
+  private parseDate(dateStr: string): Date | undefined {
+    if (!dateStr) return undefined;
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+      // DD/MM/YYYY
+      return new Date(+parts[2], +parts[1] - 1, +parts[0]);
+    }
+    return undefined;
+  }
+
+  private mapParentesco(str: string): any {
+    const s = str?.toLowerCase();
+    if (s?.includes('papa') || s?.includes('padre')) return 'PADRE';
+    if (s?.includes('mama') || s?.includes('madre')) return 'MADRE';
+    if (s?.includes('tutor')) return 'TUTOR';
+    if (s?.includes('hermano')) return 'HERMANO';
+    return 'OTRO';
   }
 }

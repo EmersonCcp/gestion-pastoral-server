@@ -23,11 +23,12 @@ export class DashboardController {
   @ApiOperation({ summary: 'Obtener cumpleañeros del mes' })
   getBirthdays(
     @Query('month') month?: number,
+    @Query('page') page?: number,
+    @Query('per_page') per_page?: number,
     @Query('movimientoId') movimientoId?: number | string,
     @User() user?: any,
   ) {
-    
     const currentMonth = month || new Date().getMonth() + 1;
-    return this.service.getBirthdays(+currentMonth, user,movimientoId);
+    return this.service.getBirthdays(+currentMonth, page ? +page : 1, per_page ? +per_page : 8, user, movimientoId);
   }
 }

@@ -3,6 +3,9 @@ import { Rol } from '../app/modules/roles/entities/role.entity';
 import { RolPermiso } from '../app/modules/roles_permisos/entities/roles_permiso.entity';
 import { Usuario } from '../app/modules/usuarios/entities/usuario.entity';
 import { UsuarioRol } from '../app/modules/usuarios_roles/entities/usuarios_role.entity';
+import { Parroquia } from '../app/modules/parroquias/entities/parroquia.entity';
+import { Movimiento } from '../app/modules/movimientos/entities/movimiento.entity';
+import { TipoPersona } from '../app/modules/personas/entities/tipo-persona.entity';
 import { AppDataSource } from '../database/data-source';
 import * as bcrypt from 'bcrypt';
 
@@ -14,6 +17,9 @@ async function seed() {
   const permisoRepo = AppDataSource.getRepository(Permiso);
   const rolPermisoRepo = AppDataSource.getRepository(RolPermiso);
   const usuarioRolRepo = AppDataSource.getRepository(UsuarioRol);
+  const parroquiaRepo = AppDataSource.getRepository(Parroquia);
+  const movimientoRepo = AppDataSource.getRepository(Movimiento);
+  const tipoPersonaRepo = AppDataSource.getRepository(TipoPersona);
 
   const permisosData = [
     // 🔹 Permisos (módulo base)
@@ -121,6 +127,50 @@ async function seed() {
     });
 
     await usuarioRolRepo.save(ur);
+  }
+
+  // 🔹 Crear Parroquia por defecto
+  let parroquia = await parroquiaRepo.findOneBy({ nombre: 'Parroquia Central' });
+  if (!parroquia) {
+    parroquia = parroquiaRepo.create({
+      nombre: 'Parroquia Central',
+      direccion: 'Calle Principal 123',
+    });
+    await parroquiaRepo.save(parroquia);
+  }
+
+  // 🔹 Crear Movimiento por defecto (ID=1)
+  let movimiento = await movimientoRepo.findOneBy({ id: 1 });
+  if (!movimiento) {
+    movimiento = movimientoRepo.create({
+      id: 1,
+      nombre: 'Catequesis',
+      descripcion: 'Movimiento de catequesis por defecto',
+      parroquia: parroquia,
+    });
+    await movimientoRepo.save(movimiento);
+  }
+
+  // 🔹 Crear Tipos de Persona
+  const tiposData = [
+    { nombre: 'Catequizando', descripcion: 'Persona que recibe formación' },
+    { nombre: 'Pariente', descripcion: 'Familiar del catequizando' },
+    { nombre: 'Catequista', descripcion: 'Formador' },
+  ];
+
+  for (const t of tiposData) {
+    let tipo = await tipoPersonaRepo.findOneBy({
+      nombre: t.nombre,
+      movimiento_id: movimiento.id,
+    });
+
+    if (!tipo) {
+      tipo = tipoPersonaRepo.create({
+        ...t,
+        movimiento: movimiento,
+      });
+      await tipoPersonaRepo.save(tipo);
+    }
   }
 
   console.log('🌱 Seeds ejecutadas correctamente');

@@ -10,7 +10,7 @@ import {
   JoinColumn,
   OneToMany,
 } from 'typeorm';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { TipoPersona } from './tipo-persona.entity';
 import { Movimiento } from '../../movimientos/entities/movimiento.entity';
 import { DocumentoPersona } from './documento-persona.entity';
@@ -124,6 +124,27 @@ export class Persona {
 
   @Column({ name: 'movimiento_id' })
   movimiento_id: number;
+
+  @ApiPropertyOptional({
+    description: '¿Tiene bautismo?',
+    example: true,
+  })
+  @Column({ default: false })
+  bautismo: boolean;
+
+  @ApiPropertyOptional({
+    description: '¿Tiene primera comunión?',
+    example: true,
+  })
+  @Column({ default: false })
+  primera_comunion: boolean;
+
+  @ApiPropertyOptional({
+    description: '¿Tiene confirmación?',
+    example: true,
+  })
+  @Column({ default: false })
+  confirmacion: boolean;
 
   @ApiProperty({
     description: 'Fecha de creación',

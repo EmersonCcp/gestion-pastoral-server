@@ -6,6 +6,7 @@ import {
   IsInt,
   IsArray,
   IsDateString,
+  IsBoolean,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -91,4 +92,28 @@ export class CreatePersonaDto {
   @IsInt()
   @IsNotEmpty()
   movimiento_id: number;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: '¿Tiene bautismo?',
+  })
+  @IsBoolean()
+  @IsOptional()
+  bautismo?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: '¿Tiene primera comunión?',
+  })
+  @IsBoolean()
+  @IsOptional()
+  primera_comunion?: boolean;
+
+  @ApiPropertyOptional({
+    example: true,
+    description: '¿Tiene confirmación?',
+  })
+  @IsBoolean()
+  @IsOptional()
+  confirmacion?: boolean;
 }
