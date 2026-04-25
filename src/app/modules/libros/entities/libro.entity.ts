@@ -41,6 +41,10 @@ export class Libro {
   @Column({ type: 'boolean', default: true })
   estado: boolean;
 
+  @ApiProperty({ description: 'URL de la imagen del libro' })
+  @Column({ type: 'text', nullable: true })
+  imagen_url: string;
+
   @ApiProperty({ description: 'Stock actual disponible' })
   @Column({ type: 'int', default: 0 })
   stock_actual: number;

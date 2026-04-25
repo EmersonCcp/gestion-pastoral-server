@@ -79,11 +79,7 @@ export class PersonasService {
       }
 
       if (filters.nombre) {
-        queryBuilder.andWhere('persona.nombre ILIKE :nombre', { nombre: `%${filters.nombre}%` });
-      }
-
-      if (filters.apellido) {
-        queryBuilder.andWhere('persona.apellido ILIKE :apellido', { apellido: `%${filters.apellido}%` });
+        queryBuilder.andWhere('(persona.nombre ILIKE :nombre OR persona.apellido ILIKE :nombre)', { nombre: `%${filters.nombre}%` });
       }
 
       if (filters.documento) {
