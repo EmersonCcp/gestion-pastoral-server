@@ -8,6 +8,7 @@ import { DataSource, Repository } from 'typeorm';
 import { ApiErrorResponse, ApiResponse } from 'src/shared/types/response.types';
 import { RolPermiso } from '../roles_permisos/entities/roles_permiso.entity';
 import { EntitlementsService } from '../entitlements/entitlements.service';
+import { SocketGateway } from '../socket/socket.gateway';
 
 @Injectable()
 export class RolesService extends BaseService<Rol> {
@@ -15,6 +16,7 @@ export class RolesService extends BaseService<Rol> {
     @InjectRepository(Rol)
     public repo: Repository<Rol>,
     private ents: EntitlementsService,
+    private socket: SocketGateway,
     dataSource: DataSource,
   ) {
     super(repo, dataSource);
@@ -55,6 +57,7 @@ export class RolesService extends BaseService<Rol> {
         });
 
         await this.ents.clearAllCache();
+        this.socket.notifyPermissionsUpdate();
 
         return this.buildSuccessResponse(fullRole, path, version);
       } catch (error) {
@@ -133,6 +136,7 @@ export class RolesService extends BaseService<Rol> {
         });
 
         await this.ents.clearAllCache();
+        this.socket.notifyPermissionsUpdate();
 
         return this.buildSuccessResponse(updated, path, version);
       });
@@ -172,6 +176,7 @@ export class RolesService extends BaseService<Rol> {
         await manager.delete(Rol, id);
 
         await this.ents.clearAllCache();
+        this.socket.notifyPermissionsUpdate();
 
         return this.buildSuccessResponse(null, path, version);
       });

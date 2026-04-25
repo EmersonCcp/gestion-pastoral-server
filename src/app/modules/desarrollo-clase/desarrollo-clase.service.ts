@@ -5,6 +5,7 @@ import { DesarrolloClase } from './entities/desarrollo-clase.entity';
 import { Tema } from '../libros/entities/tema.entity';
 import { Grupo } from '../grupos/entities/grupo.entity';
 import { AsistenciasService } from '../asistencias/asistencias.service';
+import { EstadoAsistencia } from '../asistencias/entities/asistencia-persona.entity';
 import {
   ApiErrorResponse,
   ApiListResponse,
@@ -78,6 +79,7 @@ export class DesarrolloClaseService {
     try {
       const where: any = {};
       if (filters.grupo_id) where.grupo_id = filters.grupo_id;
+      if (filters.movimiento_id) where.grupo = { movimiento_id: filters.movimiento_id };
       
       const [data, total] = await this.repo.findAndCount({
         where,
@@ -87,7 +89,16 @@ export class DesarrolloClaseService {
         relations: ['grupo', 'libro', 'temas', 'asistencia', 'asistencia.personas'],
       });
 
-      return buildListResponse(data, total, page, per_page, filters, '/desarrollo-clases');
+      const dataWithSummary = data.map(item => {
+        if (item.asistencia) {
+          (item.asistencia as any).total_presente = item.asistencia.personas?.filter(p => p.estado === EstadoAsistencia.PRESENTE).length || 0;
+          (item.asistencia as any).total_ausente = item.asistencia.personas?.filter(p => p.estado === EstadoAsistencia.AUSENTE).length || 0;
+          (item.asistencia as any).total_justificado = item.asistencia.personas?.filter(p => p.estado === EstadoAsistencia.JUSTIFICADO).length || 0;
+        }
+        return item;
+      });
+
+      return buildListResponse(dataWithSummary, total, page, per_page, filters, '/desarrollo-clases');
     } catch (error) {
       return buildErrorResponse('INTERNAL_ERROR', error.message, '/desarrollo-clases');
     }

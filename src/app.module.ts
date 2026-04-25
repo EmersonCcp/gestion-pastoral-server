@@ -22,6 +22,7 @@ import { AsistenciasModule } from './app/modules/asistencias/asistencias.module'
 import { DashboardModule } from './app/modules/dashboard/dashboard.module';
 import { LibrosModule } from './app/modules/libros/libros.module';
 import { DesarrolloClaseModule } from './app/modules/desarrollo-clase/desarrollo-clase.module';
+import { SocketModule } from './app/modules/socket/socket.module';
 import { CacheModule } from '@nestjs/cache-manager';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtPayloadGuard } from './app/modules/auth/jwt-payload.guard';
@@ -73,7 +74,8 @@ import { LoggerMiddleware } from './shared/middleware/logger.middleware';
     AsistenciasModule,
     DashboardModule,
     LibrosModule,
-    DesarrolloClaseModule
+    DesarrolloClaseModule,
+    SocketModule
   ],
   controllers: [AppController],
   providers: [AppService,
