@@ -369,7 +369,7 @@ export class AsistenciasService {
           id: a.id,
           nombre: a.nombre,
           apellido: a.apellido,
-          nro_documento: a.nro_documento,
+          nro_documento: a.documento,
           asistencias: regAsistencias,
         };
       });
