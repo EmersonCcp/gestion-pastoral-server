@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, Repository, Between, DataSource } from 'typeorm';
+import { Asignacion } from '../asignaciones/entities/asignacion.entity';
 import { Asistencia } from './entities/asistencia.entity';
 import { AsistenciaPersona, EstadoAsistencia } from './entities/asistencia-persona.entity';
 import { CreateAsistenciaDto, UpdateAsistenciaDto } from './dto/asistencias.dto';
@@ -22,6 +23,7 @@ export class AsistenciasService {
     private repo: Repository<Asistencia>,
     @InjectRepository(AsistenciaPersona)
     private personaAsistenciaRepo: Repository<AsistenciaPersona>,
+    private dataSource: DataSource,
   ) {}
 
   async create(
@@ -254,6 +256,143 @@ export class AsistenciasService {
       return buildSuccessResponse(data, '/asistencias/reporte');
     } catch (error) {
       return buildErrorResponse('INTERNAL_ERROR', error.message, '/asistencias/reporte');
+    }
+  }
+
+  async getReportePlanilla(query: {
+    periodo_id: number;
+    grupo_id: number;
+    fecha_inicio: string;
+    fecha_fin: string;
+  }): Promise<ApiResponse<any> | ApiErrorResponse> {
+    try {
+      const { periodo_id, grupo_id, fecha_inicio, fecha_fin } = query;
+
+      // 1. Obtener la asignación con todas sus relaciones
+      const asignacion = await this.dataSource.getRepository(Asignacion).findOne({
+        where: { periodo_id, grupo_id },
+        relations: [
+          'grupo',
+          'periodo',
+          'aula',
+          'personas',
+          'personas.tiposPersonas',
+          'movimiento',
+          'movimiento.parroquia',
+        ],
+      });
+
+      if (!asignacion) {
+        return buildErrorResponse(
+          'NOT_FOUND',
+          'No se encontró una asignación de grupo y período que sirva de plantilla.',
+          '/asistencias/reporte-planilla',
+        );
+      }
+
+      // 2. Clasificar personas: catequistas vs alumnos
+      const personasAsignadas = asignacion.personas || [];
+      const catequistas = personasAsignadas.filter(p =>
+        p.tiposPersonas?.some(t => t.nombre.toUpperCase() === 'CATEQUISTA' || t.nombre.toUpperCase() === 'COORDINADOR')
+      );
+      const alumnos = personasAsignadas.filter(p =>
+        !p.tiposPersonas?.some(t => t.nombre.toUpperCase() === 'CATEQUISTA' || t.nombre.toUpperCase() === 'COORDINADOR')
+      ).sort((a, b) => `${a.apellido || ''} ${a.nombre || ''}`.localeCompare(`${b.apellido || ''} ${b.nombre || ''}`));
+
+      const catequistasNombres = catequistas.map(c => `${c.nombre} ${c.apellido}`).join(' y ') || 'Sin catequistas';
+
+      // 3. Buscar asistencias ya registradas en la DB en este rango
+      const asistenciasExistentes = await this.repo.find({
+        where: {
+          periodo_id,
+          grupo_id,
+          fecha: Between(fecha_inicio, fecha_fin),
+        },
+        relations: ['personas'],
+      });
+
+      // 4. Calcular los días regulares de encuentro (ej. sábados) en el rango de fechas
+      const fechasPlanilla = new Set<string>();
+      const DAYS_MAP: Record<string, number> = {
+        DOMINGO: 0,
+        LUNES: 1,
+        MARTES: 2,
+        MIERCOLES: 3,
+        JUEVES: 4,
+        VIERNES: 5,
+        SABADO: 6
+      };
+      
+      const targetDay = asignacion.dia_reunion ? DAYS_MAP[asignacion.dia_reunion.toUpperCase()] ?? 6 : 6; // Por defecto sábado (6)
+
+      const start = new Date(fecha_inicio + 'T00:00:00');
+      const end = new Date(fecha_fin + 'T00:00:00');
+      const current = new Date(start);
+
+      while (current <= end) {
+        if (current.getDay() === targetDay) {
+          const yyyy = current.getFullYear();
+          const mm = String(current.getMonth() + 1).padStart(2, '0');
+          const dd = String(current.getDate()).padStart(2, '0');
+          fechasPlanilla.add(`${yyyy}-${mm}-${dd}`);
+        }
+        current.setDate(current.getDate() + 1);
+      }
+
+      // También agregar las fechas que ya posean asistencias en la base de datos (por si hubo reuniones extraoficiales)
+      for (const ast of asistenciasExistentes) {
+        fechasPlanilla.add(ast.fecha.toString());
+      }
+
+      // Ordenar las fechas cronológicamente
+      const fechasOrdenadas = Array.from(fechasPlanilla).sort();
+
+      // 5. Mapear las asistencias para acceso rápido O(1)
+      const asistenciaMap: Record<string, Record<number, string>> = {};
+      for (const ast of asistenciasExistentes) {
+        const fStr = ast.fecha.toString();
+        asistenciaMap[fStr] = {};
+        if (ast.personas) {
+          for (const ap of ast.personas) {
+            asistenciaMap[fStr][ap.persona_id] = ap.estado;
+          }
+        }
+      }
+
+      // 6. Formatear la lista final de alumnos con su grilla de asistencias
+      const alumnosConAsistencia = alumnos.map(a => {
+        const regAsistencias: Record<string, string> = {};
+        for (const f of fechasOrdenadas) {
+          regAsistencias[f] = asistenciaMap[f]?.[a.id] || ''; // Vacío si no se tomó asistencia
+        }
+        return {
+          id: a.id,
+          nombre: a.nombre,
+          apellido: a.apellido,
+          nro_documento: a.nro_documento,
+          asistencias: regAsistencias,
+        };
+      });
+
+      // 7. Retornar los metadatos y la grilla final estructurada
+      const data = {
+        parroquia: asignacion.movimiento?.parroquia?.nombre || 'Parroquia Central',
+        movimiento: asignacion.movimiento?.nombre || '',
+        grupo: asignacion.grupo?.nombre || '',
+        salon: asignacion.aula?.nombre || 'Sin salón',
+        anio: asignacion.periodo?.nombre || '',
+        catequistas: catequistasNombres,
+        fechas: fechasOrdenadas,
+        alumnos: alumnosConAsistencia,
+      };
+
+      return buildSuccessResponse(data, '/asistencias/reporte-planilla');
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al obtener la planilla de asistencia',
+        '/asistencias/reporte-planilla',
+      );
     }
   }
 }

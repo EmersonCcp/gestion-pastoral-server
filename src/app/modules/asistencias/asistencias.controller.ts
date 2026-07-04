@@ -82,4 +82,20 @@ export class AsistenciasController {
   getReportDetails(@Body() body: { ids: number[] }) {
     return this.service.getReportDetails(body.ids);
   }
+
+  @Get('reporte-planilla/grilla')
+  @ApiOperation({ summary: 'Obtener la planilla de asistencias consolidada en un rango de fechas' })
+  getReportePlanilla(
+    @Query('periodo_id') periodo_id: number,
+    @Query('grupo_id') grupo_id: number,
+    @Query('fecha_inicio') fecha_inicio: string,
+    @Query('fecha_fin') fecha_fin: string,
+  ) {
+    return this.service.getReportePlanilla({
+      periodo_id: Number(periodo_id),
+      grupo_id: Number(grupo_id),
+      fecha_inicio,
+      fecha_fin,
+    });
+  }
 }
