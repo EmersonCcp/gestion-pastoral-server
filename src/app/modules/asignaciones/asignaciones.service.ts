@@ -4,6 +4,7 @@ import { In, Repository } from 'typeorm';
 import { Asignacion } from './entities/asignacion.entity';
 import { CreateAsignacionDto } from './dto/create-asignacion.dto';
 import { UpdateAsignacionDto } from './dto/update-asignacion.dto';
+import { ClonarAsignacionesDto } from './dto/clonar-asignaciones.dto';
 import { Persona } from '../personas/entities/persona.entity';
 import {
   buildErrorResponse,
@@ -160,6 +161,78 @@ export class AsignacionesService {
       return buildSuccessResponse(null, `/asignaciones/${id}`, 'Asignación eliminada');
     } catch (error) {
       return buildErrorResponse('INTERNAL_ERROR', error.message, `/asignaciones/${id}`);
+    }
+  }
+
+  async clonar(
+    dto: ClonarAsignacionesDto,
+  ): Promise<ApiResponse<{ creadas: number }> | ApiErrorResponse> {
+    try {
+      const { periodo_origen_id, periodo_destino_id, copiar_personas, movimiento_id } = dto;
+
+      // Buscar asignaciones en periodo origen
+      const asignacionesOrigen = await this.repo.find({
+        where: { periodo_id: periodo_origen_id, movimiento_id },
+        relations: ['personas'],
+      });
+
+      if (!asignacionesOrigen.length) {
+        return buildErrorResponse(
+          'NOT_FOUND',
+          'No se encontraron asignaciones en el período origen para este movimiento.',
+          '/asignaciones/clonar',
+        );
+      }
+
+      // Evitar duplicar grupos que ya tengan asignación en el período destino
+      const asignacionesDestino = await this.repo.find({
+        where: { periodo_id: periodo_destino_id, movimiento_id },
+        select: ['grupo_id'],
+      });
+      const gruposYaAsignados = new Set(asignacionesDestino.map(a => a.grupo_id));
+
+      const nuevasAsignaciones: Asignacion[] = [];
+
+      for (const orig of asignacionesOrigen) {
+        // Si el grupo ya tiene asignación en el periodo destino, lo salteamos para evitar duplicados
+        if (gruposYaAsignados.has(orig.grupo_id)) {
+          continue;
+        }
+
+        const nueva = new Asignacion();
+        nueva.grupo_id = orig.grupo_id;
+        nueva.periodo_id = periodo_destino_id;
+        nueva.aula_id = orig.aula_id;
+        nueva.dia_reunion = orig.dia_reunion;
+        nueva.frecuencia = orig.frecuencia;
+        nueva.hora_inicio = orig.hora_inicio;
+        nueva.hora_fin = orig.hora_fin;
+        nueva.movimiento_id = orig.movimiento_id;
+
+        if (copiar_personas !== false && orig.personas?.length) {
+          nueva.personas = [...orig.personas];
+        } else {
+          nueva.personas = [];
+        }
+
+        nuevasAsignaciones.push(nueva);
+      }
+
+      if (nuevasAsignaciones.length > 0) {
+        await this.repo.save(nuevasAsignaciones);
+      }
+
+      return buildSuccessResponse(
+        { creadas: nuevasAsignaciones.length },
+        '/asignaciones/clonar',
+        `Se clonaron ${nuevasAsignaciones.length} asignaciones exitosamente.`,
+      );
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al clonar asignaciones',
+        '/asignaciones/clonar',
+      );
     }
   }
 }

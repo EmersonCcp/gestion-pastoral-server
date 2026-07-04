@@ -12,6 +12,7 @@ import {
 import { AsignacionesService } from './asignaciones.service';
 import { CreateAsignacionDto } from './dto/create-asignacion.dto';
 import { UpdateAsignacionDto } from './dto/update-asignacion.dto';
+import { ClonarAsignacionesDto } from './dto/clonar-asignaciones.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/auth.guard';
 import { SessionGuard } from '../auth/guards/session.guard';
@@ -79,5 +80,14 @@ export class AsignacionesController {
   @ApiOperation({ summary: 'Eliminar una asignación' })
   remove(@Param('id') id: number) {
     return this.service.remove(id);
+  }
+
+  @Post('clonar')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['asignaciones.create', 'asignaciones.*'])
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Clonar asignaciones de un período a otro' })
+  clonar(@Body() dto: ClonarAsignacionesDto) {
+    return this.service.clonar(dto);
   }
 }

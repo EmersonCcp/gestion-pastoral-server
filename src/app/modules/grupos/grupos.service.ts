@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { ILike, Repository, In } from 'typeorm';
+import { ILike, Repository, In, IsNull } from 'typeorm';
 import { Grupo } from './entities/grupo.entity';
 import { Libro } from '../libros/entities/libro.entity';
 import { CreateGrupoDto } from './dto/create-grupo.dto';
@@ -70,7 +70,9 @@ export class GruposService {
         query.movimiento_id = filters.movimiento_id;
       }
       
-      if (filters.parent_id) {
+      if (filters.parent_id === 'null' || filters.parent_id === null) {
+        query.parent = IsNull();
+      } else if (filters.parent_id) {
         query.parent_id = filters.parent_id;
       }
 
