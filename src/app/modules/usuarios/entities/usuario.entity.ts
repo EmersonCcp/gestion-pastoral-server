@@ -5,11 +5,14 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { UsuarioRol } from '../../usuarios_roles/entities/usuarios_role.entity';
 import { UsuarioSesion } from '../../usuarios_sesiones/entities/usuarios_sesione.entity';
 import { UsuarioMovimiento } from '../../usuarios_movimientos/entities/usuario_movimiento.entity';
 import { Parroquia } from '../../parroquias/entities/parroquia.entity';
+import { Grupo } from '../../grupos/entities/grupo.entity';
 
 @Entity('usuarios')
 export class Usuario {
@@ -38,6 +41,14 @@ export class Usuario {
 
   @OneToMany(() => UsuarioMovimiento, (um) => um.usuario)
   usuarioMovimientos: UsuarioMovimiento[];
+
+  @ManyToMany(() => Grupo, { cascade: false })
+  @JoinTable({
+    name: 'usuario_grupos',
+    joinColumn: { name: 'usuario_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'grupo_id', referencedColumnName: 'id' },
+  })
+  grupos: Grupo[];
 
   @ManyToOne(() => Parroquia, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'parroquia_id' })

@@ -71,4 +71,13 @@ export class CreateUsuarioDto {
   @IsInt()
   @IsOptional()
   parroquia_id?: number;
+
+  @ApiPropertyOptional({
+    example: [1, 2],
+    description: 'IDs de los grupos a los que tendrá acceso',
+    type: [Number],
+  })
+  @IsArray()
+  @IsOptional()
+  grupo_ids?: number[];
 }

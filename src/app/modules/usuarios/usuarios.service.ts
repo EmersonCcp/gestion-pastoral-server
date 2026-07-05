@@ -4,9 +4,10 @@ import { CreateUsuarioDto } from './dto/create-usuario.dto';
 import { UpdateUsuarioDto } from './dto/update-usuario.dto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Usuario } from './entities/usuario.entity';
-import { ILike, Repository, DataSource } from 'typeorm';
+import { ILike, Repository, DataSource, In } from 'typeorm';
 import { UsuarioRol } from '../usuarios_roles/entities/usuarios_role.entity';
 import { UsuarioMovimiento } from '../usuarios_movimientos/entities/usuario_movimiento.entity';
+import { Grupo } from '../grupos/entities/grupo.entity';
 import {
   ApiErrorResponse,
   ApiListResponse,
@@ -38,9 +39,18 @@ export class UsuariosService {
     await queryRunner.startTransaction();
 
     try {
-      const { movimiento_ids, ...usuarioData } = dto as any;
+      const { movimiento_ids, grupo_ids, ...usuarioData } = dto as any;
 
       const data = queryRunner.manager.create(Usuario, { ...usuarioData });
+
+      // Asignar grupos si vienen
+      if (grupo_ids && grupo_ids.length > 0) {
+        const grupos = await queryRunner.manager.find(Grupo, {
+          where: { id: In(grupo_ids.map(Number)) }
+        });
+        data.grupos = grupos;
+      }
+
       const savedUsuario = await queryRunner.manager.save(data);
 
       // Asignar rol inicial
@@ -97,6 +107,7 @@ export class UsuariosService {
           'usuarioRoles.rol',
           'usuarioMovimientos',
           'usuarioMovimientos.movimiento',
+          'grupos',
         ],
       });
 
@@ -117,6 +128,7 @@ export class UsuariosService {
         'usuarioMovimientos',
         'usuarioMovimientos.movimiento',
         'parroquia',
+        'grupos',
       ],
     });
   }
@@ -130,6 +142,7 @@ export class UsuariosService {
           'usuarioRoles.rol',
           'usuarioMovimientos',
           'usuarioMovimientos.movimiento',
+          'grupos',
         ],
       });
 
@@ -156,13 +169,24 @@ export class UsuariosService {
     await queryRunner.startTransaction();
 
     try {
-      const existing = await queryRunner.manager.findOne(Usuario, { where: { id } });
+      const existing = await queryRunner.manager.findOne(Usuario, { 
+        where: { id },
+        relations: ['grupos']
+      });
 
       if (!existing) {
         return buildErrorResponse('NOT_FOUND', 'Usuario no encontrado', `/usuarios/${id}`);
       }
 
-      const { rol_id, movimiento_ids, ...usuarioData } = dto as any;
+      const { rol_id, movimiento_ids, grupo_ids, ...usuarioData } = dto as any;
+
+      // Actualizar grupos si vienen
+      if (grupo_ids !== undefined) {
+        const grupos = grupo_ids.length > 0 
+          ? await queryRunner.manager.find(Grupo, { where: { id: In(grupo_ids.map(Number)) } })
+          : [];
+        existing.grupos = grupos;
+      }
 
       Object.assign(existing, usuarioData);
       const updated = await queryRunner.manager.save(Usuario, existing);
