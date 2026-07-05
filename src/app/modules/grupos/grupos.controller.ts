@@ -105,4 +105,14 @@ export class GruposController {
   remove(@Param('id') id: number) {
     return this.service.remove(id);
   }
+
+  @Get(':id/estadisticas')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['grupos.read', 'grupos.*'])
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Obtener estadísticas de un grupo por ID' })
+  @ApiParam({ name: 'id', description: 'ID del grupo' })
+  getEstadisticas(@Param('id') id: number) {
+    return this.service.getEstadisticas(Number(id));
+  }
 }
