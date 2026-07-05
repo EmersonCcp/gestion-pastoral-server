@@ -115,7 +115,7 @@ export class UsuariosService {
     } catch (error) {
       return buildErrorResponse(
         'INTERNAL_ERROR',
-        'Ocurrió un error obteniendo usuarios',
+        error.message || 'Ocurrió un error obteniendo usuarios',
         '/usuarios',
       );
     }
