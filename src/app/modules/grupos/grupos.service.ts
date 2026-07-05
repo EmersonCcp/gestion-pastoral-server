@@ -181,6 +181,20 @@ export class GruposService {
 
       await this.repo.remove(existing);
 
+      return buildSuccessResponse(
+        null,
+        `/grupos/${id}`,
+        'Grupo eliminado correctamente',
+      );
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message,
+        `/grupos/${id}`,
+      );
+    }
+  }
+
   async getEstadisticas(id: number): Promise<ApiResponse<any> | ApiErrorResponse> {
     try {
       const grupo = await this.repo.findOne({
@@ -216,7 +230,7 @@ export class GruposService {
       // 3. Calcular porcentajes de asistencia por clase y el promedio del grupo
       const totalAlumnos = alumnos.length;
       let sumaPorcentajesAsistencia = 0;
-      const asistenciasGrafico = [];
+      const asistenciasGrafico: any[] = [];
 
       for (const asistencia of asistencias) {
         const totalPresentes = asistencia.personas.filter(p => p.estado === EstadoAsistencia.PRESENTE).length;
@@ -239,7 +253,7 @@ export class GruposService {
       const asistenciaPromedio = asistencias.length > 0 ? Math.round(sumaPorcentajesAsistencia / asistencias.length) : 0;
 
       // 4. Calcular métricas individuales de alumnos
-      const alumnosTabla = [];
+      const alumnosTabla: any[] = [];
       let alumnosRiesgoCount = 0;
 
       for (const alumno of alumnos) {
