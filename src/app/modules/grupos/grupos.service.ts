@@ -56,10 +56,8 @@ export class GruposService {
     try {
       const query: any = {};
 
-      if (!user?.isSuperAdmin) {
-        if (filters.movimiento_id) {
-          query.movimiento_id = filters.movimiento_id;
-        }
+      if (user && !user.isSuperAdmin) {
+        query.id = In(user.grupoIds);
       }
 
       if (filters.nombre) {

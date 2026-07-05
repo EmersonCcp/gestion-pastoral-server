@@ -70,6 +70,11 @@ export class AsistenciasService {
   ): Promise<ApiListResponse<Asistencia> | ApiErrorResponse> {
     try {
       const where: any = {};
+
+      if (user && !user.isSuperAdmin) {
+        where.grupo_id = In(user.grupoIds);
+      }
+
       if (filters.grupo_id) where.grupo_id = filters.grupo_id;
       if (filters.periodo_id) where.periodo_id = filters.periodo_id;
 

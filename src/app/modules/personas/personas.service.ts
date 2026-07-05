@@ -74,6 +74,23 @@ export class PersonasService {
         .orderBy('persona.nombre', 'ASC')
         .addOrderBy('persona.apellido', 'ASC');
 
+      if (user && !user.isSuperAdmin) {
+        // Si no tiene grupos asignados, forzar a que no devuelva nada
+        if (!user.grupoIds || user.grupoIds.length === 0) {
+          queryBuilder.andWhere('1 = 0');
+        } else {
+          queryBuilder.andWhere((qb) => {
+            const subQuery = qb.subQuery()
+              .select('ap.persona_id')
+              .from('asignacion_personas', 'ap')
+              .innerJoin('asignaciones', 'a', 'a.id = ap.asignacion_id')
+              .where('a.grupo_id IN (:...grupoIds)')
+              .getQuery();
+            return 'persona.id IN ' + subQuery;
+          }, { grupoIds: user.grupoIds });
+        }
+      }
+
       if (filters.movimiento_id) {
         queryBuilder.andWhere('persona.movimiento_id = :movId', { movId: filters.movimiento_id });
       }
