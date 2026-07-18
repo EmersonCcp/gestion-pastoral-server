@@ -1,30 +1,29 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+interface GoChoice {
+  message: { content?: string };
+}
+
 @Injectable()
 export class AsistenciasScannerService {
-  private genAI: GoogleGenerativeAI;
+  private apiKey: string;
+  private model: string;
+  private baseUrl = 'https://opencode.ai/zen/go/v1/chat/completions';
 
   constructor(private configService: ConfigService) {
-    const apiKey = this.configService.get<string>('GEMINI_API_KEY') || '';
-    this.genAI = new GoogleGenerativeAI(apiKey);
+    this.apiKey = this.configService.get<string>('OPENCODE_GO_API_KEY') || '';
+    this.model =
+      this.configService.get<string>('OPENCODE_GO_MODEL') || 'mimo-v2.5';
   }
 
-  async scanPlanilla(fileBuffer: Buffer, mimeType: string, alumnos: any[], fechasSugeridas: string[]) {
-    const model = this.genAI.getGenerativeModel({
-      model: 'gemini-3.5-flash',
-      generationConfig: {
-        responseMimeType: 'application/json',
-      },
-    });
-
-    const filePart = {
-      inlineData: {
-        data: fileBuffer.toString('base64'),
-        mimeType: mimeType,
-      },
-    };
+  async scanPlanilla(
+    fileBuffer: Buffer,
+    mimeType: string,
+    alumnos: { id: number; nombre: string; apellido: string }[],
+    fechasSugeridas: string[],
+  ) {
+    const base64Image = fileBuffer.toString('base64');
 
     const prompt = `
 Analiza la siguiente imagen de una planilla física de control de asistencias de catequesis.
@@ -47,7 +46,7 @@ Instrucciones de análisis:
    - Si no hay marcas en toda la columna de esa fecha para ningún alumno (clase no dictada aún): "VACIO"
 4. Identifica si hay nombres agregados a mano al final de la lista que no figuren en la lista oficial. Mapea sus asistencias de la misma forma, pero márcalos con persona_id = null y agrega su nombre detectado en un campo "nombre_detectado" para que el usuario pueda identificarlos.
 
-Devuelve la respuesta estrictamente en formato JSON con la siguiente estructura:
+Devuelve SOLO UN JSON VÁLIDO, sin markdown, sin explicaciones, sin bloques de código. Usa estrictamente esta estructura:
 {
   "fechas_detectadas": ["YYYY-MM-DD", ...],
   "asistencias": [
@@ -64,8 +63,66 @@ Devuelve la respuesta estrictamente en formato JSON con la siguiente estructura:
 }
 `;
 
-    const result = await model.generateContent([prompt, filePart]);
-    const responseText = result.response.text();
-    return JSON.parse(responseText);
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${this.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mimeType};base64,${base64Image}` },
+              },
+            ],
+          },
+        ],
+        max_tokens: 8192,
+        temperature: 0.1,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(
+        `OpenCode Go API error (${response.status}): ${errorBody}`,
+      );
+    }
+
+    const data = (await response.json()) as {
+      choices?: GoChoice[];
+    };
+    const content = data.choices?.[0]?.message?.content;
+
+    if (!content) {
+      throw new Error('OpenCode Go API returned empty response');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return this.extractJson(content);
   }
+
+  /* eslint-disable @typescript-eslint/no-unsafe-return */
+  private extractJson(content: string) {
+    const trimmed = content.trim();
+
+    const markdownMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (markdownMatch) {
+      return JSON.parse(markdownMatch[1].trim());
+    }
+
+    const objectMatch = trimmed.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      return JSON.parse(objectMatch[0]);
+    }
+
+    return JSON.parse(trimmed);
+  }
+  /* eslint-enable @typescript-eslint/no-unsafe-return */
 }
