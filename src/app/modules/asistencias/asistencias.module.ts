@@ -7,13 +7,15 @@ import { AsistenciasController } from './asistencias.controller';
 import { AuthModule } from '../auth/auth.module';
 import { UsuarioSesion } from '../usuarios_sesiones/entities/usuarios_sesione.entity';
 
+import { AsistenciasScannerService } from './asistencias-scanner.service';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([Asistencia, AsistenciaPersona, UsuarioSesion]),
     AuthModule,
   ],
   controllers: [AsistenciasController],
-  providers: [AsistenciasService],
-  exports: [AsistenciasService],
+  providers: [AsistenciasService, AsistenciasScannerService],
+  exports: [AsistenciasService, AsistenciasScannerService],
 })
 export class AsistenciasModule { }
