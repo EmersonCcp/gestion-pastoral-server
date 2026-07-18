@@ -173,11 +173,23 @@ export class AsignacionesService {
     dto: ClonarAsignacionesDto,
   ): Promise<ApiResponse<{ creadas: number }> | ApiErrorResponse> {
     try {
-      const { periodo_origen_id, periodo_destino_id, copiar_personas, movimiento_id } = dto;
+      const {
+        periodo_origen_id,
+        periodo_destino_id,
+        copiar_personas,
+        movimiento_id,
+        grupo_id,
+        persona_ids,
+      } = dto;
+
+      const whereClause: any = { periodo_id: periodo_origen_id, movimiento_id };
+      if (grupo_id) {
+        whereClause.grupo_id = grupo_id;
+      }
 
       // Buscar asignaciones en periodo origen
       const asignacionesOrigen = await this.repo.find({
-        where: { periodo_id: periodo_origen_id, movimiento_id },
+        where: whereClause,
         relations: ['personas'],
       });
 
@@ -190,8 +202,13 @@ export class AsignacionesService {
       }
 
       // Evitar duplicar grupos que ya tengan asignación en el período destino
+      const whereDestinoClause: any = { periodo_id: periodo_destino_id, movimiento_id };
+      if (grupo_id) {
+        whereDestinoClause.grupo_id = grupo_id;
+      }
+
       const asignacionesDestino = await this.repo.find({
-        where: { periodo_id: periodo_destino_id, movimiento_id },
+        where: whereDestinoClause,
         select: ['grupo_id'],
       });
       const gruposYaAsignados = new Set(asignacionesDestino.map(a => a.grupo_id));
@@ -214,7 +231,9 @@ export class AsignacionesService {
         nueva.hora_fin = orig.hora_fin;
         nueva.movimiento_id = orig.movimiento_id;
 
-        if (copiar_personas !== false && orig.personas?.length) {
+        if (persona_ids) {
+          nueva.personas = orig.personas?.filter(p => persona_ids.includes(p.id)) || [];
+        } else if (copiar_personas !== false && orig.personas?.length) {
           nueva.personas = [...orig.personas];
         } else {
           nueva.personas = [];
