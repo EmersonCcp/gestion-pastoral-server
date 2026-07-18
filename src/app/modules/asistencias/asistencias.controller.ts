@@ -103,7 +103,7 @@ export class AsistenciasController {
   @Post('escanear')
   @RequirePermissions(['asistencias.create', 'asistencias.*'])
   @UseInterceptors(FileInterceptor('file'))
-  @ApiOperation({ summary: 'Escanear una planilla de asistencia física con IA' })
+  @ApiOperation({ summary: 'Escanear una planilla de asistencia física con Gemini' })
   scanPlanilla(
     @Body('periodo_id') periodo_id: string,
     @Body('grupo_id') grupo_id: string,
