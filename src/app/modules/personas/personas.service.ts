@@ -20,6 +20,15 @@ import csv from 'csv-parser';
 import { Readable } from 'stream';
 import { TipoPersona } from './entities/tipo-persona.entity';
 
+const removeAccents = (str: string): string => {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ñ/g, 'n')
+    .replace(/Ñ/g, 'N');
+};
+
 @Injectable()
 export class PersonasService {
   constructor(
@@ -96,7 +105,18 @@ export class PersonasService {
       }
 
       if (filters.nombre) {
-        queryBuilder.andWhere('(persona.nombre ILIKE :nombre OR persona.apellido ILIKE :nombre OR persona.documento ILIKE :nombre OR persona.email ILIKE :nombre OR persona.telefono ILIKE :nombre)', { nombre: `%${filters.nombre}%` });
+        const cleanNombre = removeAccents(filters.nombre);
+        queryBuilder.andWhere(
+          `(TRANSLATE(persona.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :nombreClean 
+            OR TRANSLATE(persona.apellido, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :nombreClean 
+            OR persona.documento ILIKE :nombreRaw 
+            OR persona.email ILIKE :nombreRaw 
+            OR persona.telefono ILIKE :nombreRaw)`,
+          { 
+            nombreClean: `%${cleanNombre}%`,
+            nombreRaw: `%${filters.nombre}%`
+          }
+        );
       }
 
       if (filters.documento) {
