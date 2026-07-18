@@ -18,6 +18,7 @@ export class EntitlementsService {
   ) {}
 
   async getUserPermissionKeys(userId: number): Promise<Set<string>> {
+    if (!userId || isNaN(Number(userId))) return new Set();
     const cacheKey = `perms:${userId}`;
     const cached = await this.cache.get<string[]>(cacheKey);
     if (cached) return new Set(cached);
@@ -47,6 +48,7 @@ export class EntitlementsService {
   }
 
   async getUserGrants(userId: string): Promise<Grant[]> {
+    if (!userId || isNaN(Number(userId))) return [];
     const cacheKey = `perms:${userId}:v1`;
     const cached = await this.cache.get<Grant[]>(cacheKey);
     if (cached) return cached;

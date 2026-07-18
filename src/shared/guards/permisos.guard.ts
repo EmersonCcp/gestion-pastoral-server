@@ -35,13 +35,11 @@ export class PermisosGuard implements CanActivate {
     const data = req.user;
 
 
-    // 🔐 Usuario no autenticado
-    if (!data) return false;
+    // 🔐 Usuario no autenticado o ID inválido
+    if (!data || !data.userId || isNaN(Number(data.userId))) return false;
 
     // 👑 Super admin → acceso total
     if (data.isSuperAdmin) return true;
-
-    if (!data) return false;
 
     // 🧩 Permisos otorgados
     const granted = await this.entl.getUserPermissionKeys(data.userId);
