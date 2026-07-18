@@ -14,7 +14,7 @@ export class AsistenciasScannerService {
   constructor(private configService: ConfigService) {
     this.apiKey = this.configService.get<string>('OPENCODE_GO_API_KEY') || '';
     this.model =
-      this.configService.get<string>('OPENCODE_GO_MODEL') || 'kimi-k2.7-code';
+      this.configService.get<string>('OPENCODE_GO_MODEL') || 'mimo-v2.5';
   }
 
   async scanPlanilla(
