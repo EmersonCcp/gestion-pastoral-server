@@ -107,6 +107,8 @@ export class AsistenciasController {
   scanPlanilla(
     @Body('periodo_id') periodo_id: string,
     @Body('grupo_id') grupo_id: string,
+    @Body('tipo_escaneo') tipo_escaneo: string,
+    @Body('fecha_especifica') fecha_especifica: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
     return this.service.scanPlanilla(
@@ -114,6 +116,8 @@ export class AsistenciasController {
       Number(grupo_id),
       file.buffer,
       file.mimetype,
+      tipo_escaneo,
+      fecha_especifica,
     );
   }
 

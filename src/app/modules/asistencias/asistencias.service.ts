@@ -422,6 +422,8 @@ export class AsistenciasService {
     grupo_id: number,
     fileBuffer: Buffer,
     mimeType: string,
+    tipo_escaneo?: string,
+    fecha_especifica?: string,
   ): Promise<ApiResponse<any> | ApiErrorResponse> {
     try {
       const asignacion = await this.repo.manager.findOne(Asignacion, {
@@ -452,7 +454,9 @@ export class AsistenciasService {
       }));
 
       const fechasSugeridas: string[] = [];
-      if (asignacion.periodo) {
+      if (tipo_escaneo === 'INDIVIDUAL' && fecha_especifica) {
+        fechasSugeridas.push(fecha_especifica);
+      } else if (asignacion.periodo) {
         const DAYS_MAP: Record<string, number> = {
           DOMINGO: 0,
           LUNES: 1,
