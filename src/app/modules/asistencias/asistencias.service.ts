@@ -300,9 +300,9 @@ export class AsistenciasService {
       const catequistas = personasAsignadas.filter(p =>
         p.tiposPersonas?.some(t => t.nombre.toUpperCase() === 'CATEQUISTA' || t.nombre.toUpperCase() === 'COORDINADOR')
       );
-      const alumnos = personasAsignadas.filter(p =>
-        !p.tiposPersonas?.some(t => t.nombre.toUpperCase() === 'CATEQUISTA' || t.nombre.toUpperCase() === 'COORDINADOR')
-      ).sort((a, b) => `${a.apellido || ''} ${a.nombre || ''}`.localeCompare(`${b.apellido || ''} ${b.nombre || ''}`));
+      const alumnos = [...personasAsignadas].sort((a, b) =>
+        `${a.apellido || ''} ${a.nombre || ''}`.localeCompare(`${b.apellido || ''} ${b.nombre || ''}`)
+      );
 
       const catequistasNombres = catequistas.map(c => `${c.nombre} ${c.apellido}`).join(' y ') || 'Sin catequistas';
 
@@ -385,7 +385,15 @@ export class AsistenciasService {
         movimiento: asignacion.movimiento?.nombre || '',
         grupo: asignacion.grupo?.nombre || '',
         salon: asignacion.aula?.nombre || 'Sin salón',
-        anio: asignacion.periodo?.nombre || '',
+        anio: (() => {
+          const name = asignacion.periodo?.nombre || '';
+          const year = asignacion.periodo?.fecha_inicio
+            ? (asignacion.periodo.fecha_inicio instanceof Date
+                ? asignacion.periodo.fecha_inicio.getFullYear().toString()
+                : String(asignacion.periodo.fecha_inicio).split('-')[0])
+            : '';
+          return year ? `${name}-${year}` : name;
+        })(),
         catequistas: catequistasNombres,
         fechas: fechasOrdenadas,
         alumnos: alumnosConAsistencia,
