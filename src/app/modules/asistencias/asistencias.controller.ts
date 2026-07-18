@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Put, Param, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Delete, Query, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiResponse as SwaggerResponse } from '@nestjs/swagger';
 import { AsistenciasService } from './asistencias.service';
 import { CreateAsistenciaDto, UpdateAsistenciaDto } from './dto/asistencias.dto';
@@ -97,5 +98,29 @@ export class AsistenciasController {
       fecha_inicio,
       fecha_fin,
     });
+  }
+
+  @Post('escanear')
+  @RequirePermissions(['asistencias.create', 'asistencias.*'])
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Escanear una planilla de asistencia física con Gemini' })
+  scanPlanilla(
+    @Body('periodo_id') periodo_id: string,
+    @Body('grupo_id') grupo_id: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.service.scanPlanilla(
+      Number(periodo_id),
+      Number(grupo_id),
+      file.buffer,
+      file.mimetype,
+    );
+  }
+
+  @Post('guardar-lote')
+  @RequirePermissions(['asistencias.create', 'asistencias.*'])
+  @ApiOperation({ summary: 'Guardar lote de asistencias validadas' })
+  guardarLote(@Body() body: any) {
+    return this.service.guardarLote(body);
   }
 }

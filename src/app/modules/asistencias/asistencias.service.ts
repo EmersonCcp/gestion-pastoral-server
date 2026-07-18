@@ -15,6 +15,7 @@ import {
   ApiListResponse,
   ApiResponse,
 } from 'src/shared/types/response.types';
+import { AsistenciasScannerService } from './asistencias-scanner.service';
 
 @Injectable()
 export class AsistenciasService {
@@ -24,6 +25,7 @@ export class AsistenciasService {
     @InjectRepository(AsistenciaPersona)
     private personaAsistenciaRepo: Repository<AsistenciaPersona>,
     private dataSource: DataSource,
+    private scannerService: AsistenciasScannerService,
   ) {}
 
   async create(
@@ -412,6 +414,166 @@ export class AsistenciasService {
         error.message || 'Error al obtener la planilla de asistencia',
         '/asistencias/reporte-planilla',
       );
+    }
+  }
+
+  async scanPlanilla(
+    periodo_id: number,
+    grupo_id: number,
+    fileBuffer: Buffer,
+    mimeType: string,
+  ): Promise<ApiResponse<any> | ApiErrorResponse> {
+    try {
+      const asignacion = await this.repo.manager.findOne(Asignacion, {
+        where: {
+          periodo_id,
+          grupo_id,
+        },
+        relations: [
+          'personas',
+          'personas.tiposPersonas',
+          'grupo',
+          'periodo',
+        ],
+      });
+
+      if (!asignacion) {
+        return buildErrorResponse(
+          'NOT_FOUND',
+          'No se encontró una asignación de grupo y período activa.',
+          '/asistencias/escanear',
+        );
+      }
+
+      const alumnos = (asignacion.personas || []).map(p => ({
+        id: p.id,
+        nombre: p.nombre,
+        apellido: p.apellido,
+      }));
+
+      const fechasSugeridas: string[] = [];
+      if (asignacion.periodo) {
+        const DAYS_MAP: Record<string, number> = {
+          DOMINGO: 0,
+          LUNES: 1,
+          MARTES: 2,
+          MIERCOLES: 3,
+          JUEVES: 4,
+          VIERNES: 5,
+          SABADO: 6
+        };
+        const targetDay = asignacion.dia_reunion ? DAYS_MAP[asignacion.dia_reunion.toUpperCase()] ?? 6 : 6;
+        const start = new Date(asignacion.periodo.fecha_inicio + 'T00:00:00');
+        const end = new Date(asignacion.periodo.fecha_fin + 'T00:00:00');
+        const current = new Date(start);
+
+        while (current <= end) {
+          if (current.getDay() === targetDay) {
+            const yyyy = current.getFullYear();
+            const mm = String(current.getMonth() + 1).padStart(2, '0');
+            const dd = String(current.getDate()).padStart(2, '0');
+            fechasSugeridas.push(`${yyyy}-${mm}-${dd}`);
+          }
+          current.setDate(current.getDate() + 1);
+        }
+      }
+
+      const data = await this.scannerService.scanPlanilla(
+        fileBuffer,
+        mimeType,
+        alumnos,
+        fechasSugeridas,
+      );
+
+      if (data && data.asistencias) {
+        data.asistencias = data.asistencias.map((a: any) => {
+          if (a.persona_id) {
+            const oficial = alumnos.find(o => o.id === a.persona_id);
+            if (oficial) {
+              a.nombre = oficial.nombre;
+              a.apellido = oficial.apellido;
+            }
+          }
+          return a;
+        });
+      }
+
+      return buildSuccessResponse(data, '/asistencias/escanear');
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al escanear planilla de asistencia',
+        '/asistencias/escanear',
+      );
+    }
+  }
+
+  async guardarLote(
+    dto: {
+      periodo_id: number;
+      grupo_id: number;
+      movimiento_id: number;
+      lote: {
+        fecha: string;
+        asistencias: {
+          persona_id: number;
+          estado: EstadoAsistencia;
+        }[];
+      }[];
+    }
+  ): Promise<ApiResponse<any> | ApiErrorResponse> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      for (const item of dto.lote) {
+        let asistencia = await queryRunner.manager.findOne(Asistencia, {
+          where: {
+            fecha: item.fecha,
+            grupo_id: dto.grupo_id,
+            periodo_id: dto.periodo_id,
+          }
+        });
+
+        if (!asistencia) {
+          asistencia = new Asistencia();
+          asistencia.fecha = item.fecha;
+          asistencia.grupo_id = dto.grupo_id;
+          asistencia.periodo_id = dto.periodo_id;
+          asistencia.movimiento_id = dto.movimiento_id;
+          asistencia = await queryRunner.manager.save(Asistencia, asistencia);
+        } else {
+          await queryRunner.manager.delete(AsistenciaPersona, {
+            asistencia_id: asistencia.id,
+          });
+        }
+
+        const personas = item.asistencias.map((p) => {
+          const ap = new AsistenciaPersona();
+          ap.asistencia_id = asistencia.id;
+          ap.persona_id = p.persona_id;
+          ap.estado = p.estado;
+          ap.observacion = null;
+          return ap;
+        });
+
+        if (personas.length > 0) {
+          await queryRunner.manager.save(AsistenciaPersona, personas);
+        }
+      }
+
+      await queryRunner.commitTransaction();
+      return buildSuccessResponse({ success: true }, '/asistencias/guardar-lote');
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al guardar el lote de asistencias',
+        '/asistencias/guardar-lote',
+      );
+    } finally {
+      await queryRunner.release();
     }
   }
 }
