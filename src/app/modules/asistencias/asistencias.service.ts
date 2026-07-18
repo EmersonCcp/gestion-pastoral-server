@@ -368,7 +368,13 @@ export class AsistenciasService {
       const alumnosConAsistencia = alumnos.map(a => {
         const regAsistencias: Record<string, string> = {};
         for (const f of fechasOrdenadas) {
-          regAsistencias[f] = asistenciaMap[f]?.[a.id] || ''; // Vacío si no se tomó asistencia
+          if (asistenciaMap[f]) {
+            // Si la clase ya fue registrada en la DB pero el alumno no tiene registro, figura como AUSENTE
+            regAsistencias[f] = asistenciaMap[f][a.id] || 'AUSENTE';
+          } else {
+            // Si no se tomó asistencia para este día todavía, queda vacío
+            regAsistencias[f] = '';
+          }
         }
         return {
           id: a.id,
