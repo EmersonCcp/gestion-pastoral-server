@@ -4,6 +4,8 @@ import { In, Repository, Between, DataSource } from 'typeorm';
 import { Asignacion } from '../asignaciones/entities/asignacion.entity';
 import { Asistencia } from './entities/asistencia.entity';
 import { AsistenciaPersona, EstadoAsistencia } from './entities/asistencia-persona.entity';
+import { Persona } from '../personas/entities/persona.entity';
+import { TipoPersona } from '../personas/entities/tipo-persona.entity';
 import { CreateAsistenciaDto, UpdateAsistenciaDto } from './dto/asistencias.dto';
 import {
   buildErrorResponse,
@@ -579,5 +581,103 @@ export class AsistenciasService {
     } finally {
       await queryRunner.release();
     }
+  }
+
+  async crearPersonasDesdePlanilla(
+    periodo_id: number,
+    grupo_id: number,
+    nombres: string[],
+  ): Promise<ApiResponse<any> | ApiErrorResponse> {
+    try {
+      const asignacion = await this.dataSource.getRepository(Asignacion).findOne({
+        where: { periodo_id, grupo_id },
+        relations: ['personas', 'grupo'],
+      });
+
+      if (!asignacion) {
+        return buildErrorResponse(
+          'NOT_FOUND',
+          'No se encontró la asignación de grupo y período activa.',
+          '/asistencias/crear-personas-planilla',
+        );
+      }
+
+      const movimiento_id = asignacion.grupo.movimiento_id;
+
+      // Buscar tipo de persona 'Catequizando' para este movimiento
+      let tipoPersona = await this.dataSource.getRepository(TipoPersona).findOne({
+        where: { nombre: 'Catequizando', movimiento_id },
+      });
+
+      // Si no existe, podemos buscar cualquier tipo de persona o fallar
+      if (!tipoPersona) {
+        tipoPersona = await this.dataSource.getRepository(TipoPersona).findOne({
+          where: { movimiento_id },
+        });
+      }
+
+      if (!tipoPersona) {
+        return buildErrorResponse(
+          'NOT_FOUND',
+          'No se encontró ningún tipo de persona configurado para este movimiento.',
+          '/asistencias/crear-personas-planilla',
+        );
+      }
+
+      const creados: any[] = [];
+
+      await this.dataSource.transaction(async (manager) => {
+        const personaRepo = manager.getRepository(Persona);
+        const asignacionRepo = manager.getRepository(Asignacion);
+
+        const nuevasPersonas: Persona[] = [];
+
+        for (const nombreCompleto of nombres) {
+          const { nombre, apellido } = this.dividirNombreCompleto(nombreCompleto);
+
+          const persona = personaRepo.create({
+            nombre,
+            apellido,
+            movimiento_id,
+            tiposPersonas: [tipoPersona],
+          });
+
+          const guardada = await personaRepo.save(persona);
+          nuevasPersonas.push(guardada);
+
+          creados.push({
+            id: guardada.id,
+            nombre: guardada.nombre,
+            apellido: guardada.apellido,
+            nombre_detectado: nombreCompleto,
+          });
+        }
+
+        asignacion.personas = [...(asignacion.personas || []), ...nuevasPersonas];
+        await asignacionRepo.save(asignacion);
+      });
+
+      return buildSuccessResponse(creados, '/asistencias/crear-personas-planilla');
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al crear personas desde planilla',
+        '/asistencias/crear-personas-planilla',
+      );
+    }
+  }
+
+  private dividirNombreCompleto(nombreCompleto: string): { nombre: string; apellido: string } {
+    const partes = nombreCompleto.trim().split(/\s+/);
+    if (partes.length === 1) {
+      return { nombre: partes[0], apellido: 'Sin Apellido' };
+    }
+    if (partes.length === 2) {
+      return { nombre: partes[0], apellido: partes[1] };
+    }
+    const mitad = Math.ceil(partes.length / 2);
+    const nombre = partes.slice(0, mitad).join(' ');
+    const apellido = partes.slice(mitad).join(' ');
+    return { nombre, apellido };
   }
 }

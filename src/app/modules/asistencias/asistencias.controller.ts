@@ -127,4 +127,19 @@ export class AsistenciasController {
   guardarLote(@Body() body: any) {
     return this.service.guardarLote(body);
   }
+
+  @Post('crear-personas-planilla')
+  @RequirePermissions(['asistencias.create', 'asistencias.*'])
+  @ApiOperation({ summary: 'Crear alumnos no registrados desde el escaneo e integrarlos al grupo' })
+  crearPersonasPlanilla(
+    @Body('periodo_id') periodo_id: number,
+    @Body('grupo_id') grupo_id: number,
+    @Body('nombres') nombres: string[],
+  ) {
+    return this.service.crearPersonasDesdePlanilla(
+      Number(periodo_id),
+      Number(grupo_id),
+      nombres,
+    );
+  }
 }

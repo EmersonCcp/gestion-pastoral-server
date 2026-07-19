@@ -14,6 +14,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { PersonasService } from './personas.service';
 import { CreatePersonaDto } from './dto/create-persona.dto';
+import { CrearPersonasLoteDto } from './dto/crear-personas-lote.dto';
 import { UpdatePersonaDto } from './dto/update-persona.dto';
 import { CreatePersonaRelacionDto } from './dto/persona-relacion.dto';
 import { ApiOperation, ApiParam, ApiResponse, ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -111,6 +112,23 @@ export class PersonasController {
     return this.service.removeRelacion(id);
   }
 
+  @Post('escanear-lista')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['personas.read', 'personas.*'])
+  @ApiBearerAuth('access-token')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Escanear una imagen con lista de nombres y verificar existencia en BD' })
+  escanearLista(
+    @UploadedFile() file: Express.Multer.File,
+    @Body('movimiento_id') movimiento_id?: string,
+  ) {
+    return this.service.escanearLista(
+      file.buffer,
+      file.mimetype,
+      movimiento_id ? Number(movimiento_id) : undefined,
+    );
+  }
+
   @Post('upload-csv')
   @UseGuards(JwtAuthGuard, SessionGuard)
   @RequirePermissions(['personas.create', 'personas.*'])
@@ -119,5 +137,14 @@ export class PersonasController {
   @ApiOperation({ summary: 'Carga masiva de personas desde CSV' })
   uploadCsv(@UploadedFile() file: Express.Multer.File) {
     return this.service.bulkUpload(file);
+  }
+
+  @Post('crear-lote')
+  @UseGuards(JwtAuthGuard, SessionGuard)
+  @RequirePermissions(['personas.create', 'personas.*'])
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Crear múltiples personas en lote' })
+  crearLote(@Body() dto: CrearPersonasLoteDto) {
+    return this.service.crearLote(dto);
   }
 }
