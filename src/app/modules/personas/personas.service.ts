@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Repository } from 'typeorm';
 import { Persona } from './entities/persona.entity';
 import { CreatePersonaDto } from './dto/create-persona.dto';
+import { CrearPersonasLoteDto } from './dto/crear-personas-lote.dto';
 import { UpdatePersonaDto } from './dto/update-persona.dto';
 import { CreatePersonaRelacionDto } from './dto/persona-relacion.dto';
 import { PersonaRelacion } from './entities/persona-relacion.entity';
@@ -19,6 +20,7 @@ import {
 import csv from 'csv-parser';
 import { Readable } from 'stream';
 import { TipoPersona } from './entities/tipo-persona.entity';
+import { PersonasScannerService } from './personas-scanner.service';
 
 const removeAccents = (str: string): string => {
   if (!str) return '';
@@ -38,6 +40,7 @@ export class PersonasService {
     private relacionRepo: Repository<PersonaRelacion>,
     @InjectRepository(TipoPersona)
     private tipoRepo: Repository<TipoPersona>,
+    private scannerService: PersonasScannerService,
   ) { }
 
   async create(
@@ -277,6 +280,136 @@ export class PersonasService {
     }
   }
 
+  async escanearLista(
+    fileBuffer: Buffer,
+    mimeType: string,
+    movimiento_id?: number,
+  ): Promise<ApiResponse<any> | ApiErrorResponse> {
+    try {
+      const scanResult = await this.scannerService.scanLista(fileBuffer, mimeType);
+      const nombres = scanResult?.nombres_detectados || [];
+
+      const resultados = await Promise.all(
+        nombres.map(async (n: { nombre_completo: string; nombre: string; apellido: string }) => {
+          const match = await this.buscarPersonaPorNombreDetectado(
+            n.nombre || '',
+            n.apellido || '',
+            n.nombre_completo || '',
+            movimiento_id,
+          );
+
+          return {
+            nombre_detectado: n.nombre_completo,
+            nombre: n.nombre,
+            apellido: n.apellido,
+            existe: !!match.persona,
+            persona: match.persona
+              ? {
+                  id: match.persona.id,
+                  nombre: match.persona.nombre,
+                  apellido: match.persona.apellido,
+                  documento: match.persona.documento,
+                  tiposPersonas: match.persona.tiposPersonas,
+                }
+              : null,
+            coincidencia: match.coincidencia,
+          };
+        }),
+      );
+
+      return buildSuccessResponse(resultados, '/personas/escanear-lista');
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al escanear lista de personas',
+        '/personas/escanear-lista',
+      );
+    }
+  }
+
+  private async buscarPersonaPorNombreDetectado(
+    nombre: string,
+    apellido: string,
+    nombreCompleto: string,
+    movimiento_id?: number,
+  ): Promise<{ persona: Persona | null; coincidencia: 'EXACTA' | 'PARCIAL' | 'SIN_COINCIDENCIA' }> {
+    const normalize = (s: string) => removeAccents(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const detectedFull = normalize(nombreCompleto || `${nombre} ${apellido}`);
+    const detectedNombre = normalize(nombre);
+    const detectedApellido = normalize(apellido);
+
+    // Search by first token of name (more permissive), then score candidates in memory
+    const searchTerm = detectedNombre.split(' ')[0] || detectedFull.split(' ')[0];
+    if (!searchTerm || searchTerm.length < 2) {
+      return { persona: null, coincidencia: 'SIN_COINCIDENCIA' };
+    }
+
+    const qb = this.repo
+      .createQueryBuilder('persona')
+      .leftJoinAndSelect('persona.tiposPersonas', 'tipo')
+      .where(
+        `(TRANSLATE(persona.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :term
+          OR TRANSLATE(persona.apellido, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :term
+          OR TRANSLATE(CONCAT(persona.nombre, ' ', persona.apellido), 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :full)`,
+        { term: `%${searchTerm}%`, full: `%${detectedFull}%` },
+      )
+      .take(20);
+
+    if (movimiento_id) {
+      qb.andWhere('persona.movimiento_id = :movId', { movId: movimiento_id });
+    }
+
+    const candidates = await qb.getMany();
+    if (!candidates.length) {
+      return { persona: null, coincidencia: 'SIN_COINCIDENCIA' };
+    }
+
+    // Exact: nombre + apellido match (accent-insensitive)
+    const exact = candidates.find((p) => {
+      const pNombre = normalize(p.nombre);
+      const pApellido = normalize(p.apellido);
+      const pFull = `${pNombre} ${pApellido}`.trim();
+      return (
+        pFull === detectedFull ||
+        (pNombre === detectedNombre &&
+          (!detectedApellido || pApellido === detectedApellido || pApellido.includes(detectedApellido) || detectedApellido.includes(pApellido)))
+      );
+    });
+
+    if (exact) {
+      return { persona: exact, coincidencia: 'EXACTA' };
+    }
+
+    // Partial: full name contains detected or vice versa
+    const partial = candidates.find((p) => {
+      const pFull = normalize(`${p.nombre} ${p.apellido}`);
+      return pFull.includes(detectedFull) || detectedFull.includes(pFull);
+    });
+
+    if (partial) {
+      return { persona: partial, coincidencia: 'PARCIAL' };
+    }
+
+    // Fallback: same first name + shared last-name token
+    const byTokens = candidates.find((p) => {
+      const pNombre = normalize(p.nombre);
+      const pApellido = normalize(p.apellido);
+      if (pNombre !== detectedNombre && !pNombre.includes(detectedNombre) && !detectedNombre.includes(pNombre)) {
+        return false;
+      }
+      if (!detectedApellido) return true;
+      const detTokens = detectedApellido.split(' ').filter(Boolean);
+      const pTokens = pApellido.split(' ').filter(Boolean);
+      return detTokens.some((t) => pTokens.includes(t));
+    });
+
+    if (byTokens) {
+      return { persona: byTokens, coincidencia: 'PARCIAL' };
+    }
+
+    return { persona: null, coincidencia: 'SIN_COINCIDENCIA' };
+  }
+
   async bulkUpload(file: Express.Multer.File): Promise<ApiResponse<any> | ApiErrorResponse> {
     const results: any[] = [];
     const stream = Readable.from(file.buffer);
@@ -380,5 +513,56 @@ export class PersonasService {
     if (s?.includes('tutor')) return 'TUTOR';
     if (s?.includes('hermano')) return 'HERMANO';
     return 'OTRO';
+  }
+
+  async crearLote(dto: CrearPersonasLoteDto): Promise<ApiResponse<Persona[]> | ApiErrorResponse> {
+    try {
+      const { movimiento_id, personas } = dto;
+
+      // Buscar tipo de persona 'Catequizando' para este movimiento
+      let tipoPersona = await this.tipoRepo.findOne({
+        where: { nombre: 'Catequizando', movimiento_id },
+      });
+
+      // Si no existe, buscamos cualquier tipo de persona para el movimiento como fallback
+      if (!tipoPersona) {
+        tipoPersona = await this.tipoRepo.findOne({
+          where: { movimiento_id },
+        });
+      }
+
+      if (!tipoPersona) {
+        return buildErrorResponse(
+          'NOT_FOUND',
+          'No se encontró ningún tipo de persona configurado para este movimiento.',
+          '/personas/crear-lote',
+        );
+      }
+
+      const creadas: Persona[] = [];
+
+      await this.repo.manager.transaction(async (manager) => {
+        const personaRepo = manager.getRepository(Persona);
+
+        for (const item of personas) {
+          const persona = personaRepo.create({
+            nombre: item.nombre,
+            apellido: item.apellido,
+            movimiento_id,
+            tiposPersonas: [tipoPersona],
+          });
+          const guardada = await personaRepo.save(persona);
+          creadas.push(guardada);
+        }
+      });
+
+      return buildSuccessResponse(creadas, '/personas/crear-lote');
+    } catch (error) {
+      return buildErrorResponse(
+        'INTERNAL_ERROR',
+        error.message || 'Error al crear personas en lote',
+        '/personas/crear-lote',
+      );
+    }
   }
 }

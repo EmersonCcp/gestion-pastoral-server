@@ -12,11 +12,12 @@ import { PersonaRelacion } from './entities/persona-relacion.entity';
 import { UsuarioSesion } from '../usuarios_sesiones/entities/usuarios_sesione.entity';
 import { AuthModule } from '../auth/auth.module';
 import { DocumentosPersonaService } from './documentos-persona.service';
+import { PersonasScannerService } from './personas-scanner.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Persona, TipoPersona, DocumentoPersona, PersonaRelacion, UsuarioSesion]), AuthModule],
   controllers: [PersonasController, TiposPersonasController, DocumentosPersonaController],
-  providers: [PersonasService, TiposPersonasService, DocumentosPersonaService],
+  providers: [PersonasService, TiposPersonasService, DocumentosPersonaService, PersonasScannerService],
   exports: [PersonasService, TiposPersonasService, DocumentosPersonaService],
 })
 export class PersonasModule { }
