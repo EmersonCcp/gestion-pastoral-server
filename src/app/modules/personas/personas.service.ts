@@ -127,8 +127,14 @@ export class PersonasService {
       }
 
       if (filters.tipo_persona_id) {
-        // Filtramos por personas que tengan el ID especificado en su lista de tipos
-        queryBuilder.andWhere('tipo.id = :tipoId', { tipoId: filters.tipo_persona_id });
+        queryBuilder.andWhere((qb) => {
+          const subQuery = qb.subQuery()
+            .select('pta.persona_id')
+            .from('personas_tipos_asignados', 'pta')
+            .where('pta.tipo_persona_id = :tipoId')
+            .getQuery();
+          return 'persona.id IN ' + subQuery;
+        }, { tipoId: filters.tipo_persona_id });
       }
 
       const [data, total] = await queryBuilder.getManyAndCount();
