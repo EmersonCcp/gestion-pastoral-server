@@ -1,6 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Brackets, In, Repository } from 'typeorm';
+
+const removeAccents = (str: string): string => {
+  if (!str) return '';
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/ñ/g, 'n')
+    .replace(/Ñ/g, 'N');
+};
 import { Asignacion } from './entities/asignacion.entity';
 import { CreateAsignacionDto } from './dto/create-asignacion.dto';
 import { UpdateAsignacionDto } from './dto/update-asignacion.dto';
@@ -70,35 +79,72 @@ export class AsignacionesService {
     user?: any,
   ): Promise<ApiListResponse<Asignacion> | ApiErrorResponse> {
     try {
-      const where: any = {};
-      
+      const queryBuilder = this.repo.createQueryBuilder('asignacion')
+        .leftJoinAndSelect('asignacion.grupo', 'grupo')
+        .leftJoinAndSelect('grupo.movimiento', 'movimiento')
+        .leftJoinAndSelect('asignacion.periodo', 'periodo')
+        .leftJoinAndSelect('asignacion.aula', 'aula')
+        .leftJoinAndSelect('asignacion.personas', 'persona')
+        .leftJoinAndSelect('persona.tiposPersonas', 'tipo')
+        .skip((page - 1) * per_page)
+        .take(per_page)
+        .orderBy('asignacion.createdAt', 'DESC');
+
       if (user && !user.isSuperAdmin) {
-        where.grupo_id = In(user.grupoIds);
+        if (!user.grupoIds || user.grupoIds.length === 0) {
+          queryBuilder.andWhere('1 = 0');
+        } else {
+          queryBuilder.andWhere('asignacion.grupo_id IN (:...grupoIds)', { grupoIds: user.grupoIds });
+        }
       }
 
-      if (filters.grupo_id) where.grupo_id = filters.grupo_id;
-      if (filters.periodo_id) where.periodo_id = filters.periodo_id;
-      if (filters.persona_id) {
-        where.personas = { id: filters.persona_id };
+      if (filters.grupo_id) {
+        queryBuilder.andWhere('asignacion.grupo_id = :grupoId', { grupoId: filters.grupo_id });
       }
-      
+
+      if (filters.periodo_id) {
+        queryBuilder.andWhere('asignacion.periodo_id = :periodoId', { periodoId: filters.periodo_id });
+      }
+
       if (filters.movimiento_id) {
-        where.movimiento_id = filters.movimiento_id;
+        queryBuilder.andWhere('asignacion.movimiento_id = :movimientoId', { movimientoId: filters.movimiento_id });
       }
 
-      const [data, total] = await this.repo.findAndCount({
-        where,
-        order: { createdAt: 'DESC' },
-        skip: (page - 1) * per_page,
-        take: per_page,
-        relations: ['grupo', 'periodo', 'aula', 'personas', 'personas.tiposPersonas'],
-      });
+      if (filters.persona_id) {
+        queryBuilder.andWhere((qb) => {
+          const subQuery = qb.subQuery()
+            .select('ap.asignacion_id')
+            .from('asignacion_personas', 'ap')
+            .where('ap.persona_id = :personaId')
+            .getQuery();
+          return 'asignacion.id IN ' + subQuery;
+        }, { personaId: filters.persona_id });
+      }
+
+      if (filters.search) {
+        const cleanSearch = removeAccents(filters.search);
+        queryBuilder.andWhere(new Brackets((qb) => {
+          qb.where("TRANSLATE(grupo.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search", { search: `%${cleanSearch}%` })
+            .orWhere("TRANSLATE(aula.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search", { search: `%${cleanSearch}%` });
+
+          const subQuery = qb.subQuery()
+            .select('ap.asignacion_id')
+            .from('asignacion_personas', 'ap')
+            .innerJoin('personas', 'p', 'p.id = ap.persona_id')
+            .where("TRANSLATE(p.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search OR TRANSLATE(p.apellido, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search")
+            .getQuery();
+
+          qb.orWhere('asignacion.id IN ' + subQuery);
+        }));
+      }
+
+      const [data, total] = await queryBuilder.getManyAndCount();
 
       return buildListResponse(data, total, page, per_page, filters, '/asignaciones');
     } catch (error) {
       return buildErrorResponse(
         'INTERNAL_ERROR',
-        'Error obteniendo asignaciones',
+        error.message || 'Error obteniendo asignaciones',
         '/asignaciones',
       );
     }
