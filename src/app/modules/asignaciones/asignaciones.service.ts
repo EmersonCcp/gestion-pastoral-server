@@ -127,7 +127,7 @@ export class AsignacionesService {
           qb.where("TRANSLATE(grupo.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search", { search: `%${cleanSearch}%` })
             .orWhere("TRANSLATE(aula.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search", { search: `%${cleanSearch}%` });
 
-          const subQuery = qb.subQuery()
+          const subQuery = queryBuilder.subQuery()
             .select('ap.asignacion_id')
             .from('asignacion_personas', 'ap')
             .innerJoin('personas', 'p', 'p.id = ap.persona_id')
