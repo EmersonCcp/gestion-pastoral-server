@@ -225,12 +225,15 @@ export class AsignacionesService {
         copiar_personas,
         movimiento_id,
         grupo_id,
+        grupo_ids,
         persona_ids,
       } = dto;
 
       const whereClause: any = { periodo_id: periodo_origen_id, movimiento_id };
       if (grupo_id) {
         whereClause.grupo_id = grupo_id;
+      } else if (grupo_ids && grupo_ids.length > 0) {
+        whereClause.grupo_id = In(grupo_ids);
       }
 
       // Buscar asignaciones en periodo origen
@@ -251,6 +254,8 @@ export class AsignacionesService {
       const whereDestinoClause: any = { periodo_id: periodo_destino_id, movimiento_id };
       if (grupo_id) {
         whereDestinoClause.grupo_id = grupo_id;
+      } else if (grupo_ids && grupo_ids.length > 0) {
+        whereDestinoClause.grupo_id = In(grupo_ids);
       }
 
       const asignacionesDestino = await this.repo.find({

@@ -36,6 +36,12 @@ export class ClonarAsignacionesDto {
   @IsOptional()
   grupo_id?: number;
 
+  @ApiPropertyOptional({ example: [1, 2], description: 'IDs de los grupos a clonar' })
+  @IsArray()
+  @IsInt({ each: true })
+  @IsOptional()
+  grupo_ids?: number[];
+
   @ApiPropertyOptional({ example: [1, 2], description: 'IDs de las personas a clonar' })
   @IsArray()
   @IsInt({ each: true })
