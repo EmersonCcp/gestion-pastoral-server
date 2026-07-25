@@ -131,7 +131,7 @@ export class AsignacionesService {
             .select('ap.asignacion_id')
             .from('asignacion_personas', 'ap')
             .innerJoin('personas', 'p', 'p.id = ap.persona_id')
-            .where("TRANSLATE(p.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search OR TRANSLATE(p.apellido, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search")
+            .where("TRANSLATE(p.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search OR TRANSLATE(p.apellido, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search OR TRANSLATE(CONCAT(p.nombre, ' ', p.apellido), 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search OR TRANSLATE(CONCAT(p.apellido, ' ', p.nombre), 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :search")
             .getQuery();
 
           qb.orWhere('asignacion.id IN ' + subQuery);

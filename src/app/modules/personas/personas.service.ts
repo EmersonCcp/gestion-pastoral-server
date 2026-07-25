@@ -112,6 +112,8 @@ export class PersonasService {
         queryBuilder.andWhere(
           `(TRANSLATE(persona.nombre, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :nombreClean 
             OR TRANSLATE(persona.apellido, 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :nombreClean 
+            OR TRANSLATE(CONCAT(persona.nombre, ' ', persona.apellido), 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :nombreClean
+            OR TRANSLATE(CONCAT(persona.apellido, ' ', persona.nombre), 'áéíóúÁÉÍÓÚüÜñÑ', 'aeiouAEIOUuUnN') ILIKE :nombreClean
             OR persona.documento ILIKE :nombreRaw 
             OR persona.email ILIKE :nombreRaw 
             OR persona.telefono ILIKE :nombreRaw)`,
