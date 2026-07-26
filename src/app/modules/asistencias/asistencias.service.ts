@@ -304,9 +304,11 @@ export class AsistenciasService {
       const catequistas = personasAsignadas.filter(p =>
         p.tiposPersonas?.some(t => t.nombre.toUpperCase() === 'CATEQUISTA' || t.nombre.toUpperCase() === 'COORDINADOR')
       );
-      const alumnos = [...personasAsignadas].sort((a, b) =>
-        `${a.apellido || ''} ${a.nombre || ''}`.localeCompare(`${b.apellido || ''} ${b.nombre || ''}`)
-      );
+      const alumnos = [...personasAsignadas].sort((a, b) => {
+        const nameA = `${a.nombre || ''} ${a.apellido || ''}`.toLowerCase();
+        const nameB = `${b.nombre || ''} ${b.apellido || ''}`.toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
 
       const catequistasNombres = catequistas.map(c => `${c.nombre} ${c.apellido}`).join(' y ') || 'Sin catequistas';
 
