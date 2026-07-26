@@ -24,6 +24,7 @@ export class GeminiVisionAdapter implements AiVisionAdapter {
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,
+        maxOutputTokens: 8192,
       },
     });
 
@@ -46,15 +47,22 @@ export class GeminiVisionAdapter implements AiVisionAdapter {
     try { return JSON.parse(trimmed); } catch { /* fall through */ }
 
     const md = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    if (md) return JSON.parse(md[1].trim());
+    if (md) {
+      try { return JSON.parse(md[1].trim()); } catch { /* fall through */ }
+    }
 
     const cleaned = trimmed
-      .replace(/,\s*([}\]])/g, '$1')
+      .replace(/,\s*([}\]])/g, '$1')                 // trailing commas
+      .replace(/([}\]])[\s\n]*([\[{])/g, '$1,$2')    // missing comma between adjacent []/{}
+      .replace(/(\d|"|true|false|null)[\s\n]+"/g, '$1,"')  // missing comma between value and key
+      .replace(/"[\s\n]+"/g, '","')                   // missing comma between adjacent strings
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2018\u2019]/g, "'");
 
     const obj = cleaned.match(/\{[\s\S]*\}/);
-    if (obj) return JSON.parse(obj[0]);
+    if (obj) {
+      try { return JSON.parse(obj[0]); } catch { /* fall through */ }
+    }
 
     throw new Error(`JSON inválido de Gemini: ${trimmed.slice(0, 200)}`);
   }
