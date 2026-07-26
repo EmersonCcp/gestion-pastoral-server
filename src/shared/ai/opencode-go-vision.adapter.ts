@@ -50,16 +50,16 @@ export class OpenCodeGoVisionAdapter implements AiVisionAdapter {
       throw new Error(`OpenCode Go API error (${response.status}): ${errorBody}`);
     }
 
-    const data = (await response.json()) as {
-      choices?: { message?: { content?: string } }[];
-    };
-    const content = data.choices?.[0]?.message?.content;
+    const data = (await response.json()) as Record<string, any>;
+    const content = data?.choices?.[0]?.message?.content;
 
-    if (!content) {
-      throw new Error('OpenCode Go API returned empty response');
+    if (!content && content !== '') {
+      throw new Error(
+        `OpenCode Go API returned empty response. Response keys: ${Object.keys(data).join(', ')}. Choices: ${JSON.stringify(data?.choices)?.slice(0, 300)}`,
+      );
     }
 
-    const parsed = this.parseJson(content);
+    const parsed = this.parseJson(content || '{}');
     return { raw: parsed };
   }
 
