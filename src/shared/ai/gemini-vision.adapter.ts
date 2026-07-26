@@ -24,7 +24,7 @@ export class GeminiVisionAdapter implements AiVisionAdapter {
       generationConfig: {
         responseMimeType: 'application/json',
         temperature: 0.1,
-        maxOutputTokens: 8192,
+        maxOutputTokens: 32768,
       },
     });
 

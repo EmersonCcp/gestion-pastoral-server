@@ -40,7 +40,7 @@ export class OpenCodeGoVisionAdapter implements AiVisionAdapter {
             ],
           },
         ],
-        max_tokens: 8192,
+        max_tokens: 32768,
         temperature: 0.1,
       }),
     });
