@@ -23,12 +23,12 @@ ${JSON.stringify(fechasSugeridas, null, 2)}
 Instrucciones de analisis:
 1. Identifica las columnas de fechas en la cabecera de la tabla. Usa las fechas sugeridas como referencia para mapearlas al formato YYYY-MM-DD.
 2. Identifica las filas de participantes. Cada fila tiene un numero correlativo, el nombre del alumno y luego una celda para cada fecha.
-3. Para cada combinacion de alumno oficial (mapeando por nombre y apellido, tolerando ligeras variaciones ortograficas) y fecha detectada, determina el estado de asistencia:
-   - "P" o marca similar: "PRESENTE"
-   - "A" o marca similar: "AUSENTE"
-   - "J" o marca similar: "JUSTIFICADO"
-   - Celda vacia con otros alumnos marcados en esa columna: "AUSENTE"
-   - Sin marcas en toda la columna: "VACIO"
+ 3. Para cada combinacion de alumno oficial (mapeando por nombre y apellido, tolerando ligeras variaciones ortograficas) y fecha detectada, determina el estado de asistencia:
+   - "P", "X", checkmark, celda pintada de VERDE, o cualquier marca de asistencia: "PRESENTE"
+   - "A", "-" (guion), "—", "..", "''", celda tachada, celda pintada de ROJO, o cualquier marca de ausencia: "AUSENTE"
+   - "J" o similar, celda pintada de AMARILLO: "JUSTIFICADO"
+   - Celda vacia/sin marca, pero hay registros (P/A/J) de otros alumnos en esa misma columna: "AUSENTE"
+   - Sin marcas en toda la columna (ningun alumno tiene P, A ni J): "VACIO"
 4. Identifica nombres agregados a mano al final que no figuren en la lista oficial. Marcalos con persona_id = null y agrega su nombre detectado en "nombre_detectado".
 
 Responde SOLO con este JSON (sin markdown, sin texto extra):
