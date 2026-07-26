@@ -396,13 +396,12 @@ export class AsistenciasService {
         grupo: asignacion.grupo?.nombre || '',
         salon: asignacion.aula?.nombre || 'Sin salón',
         anio: (() => {
-          const name = asignacion.periodo?.nombre || '';
           const year = asignacion.periodo?.fecha_inicio
             ? (asignacion.periodo.fecha_inicio instanceof Date
                 ? asignacion.periodo.fecha_inicio.getFullYear().toString()
                 : String(asignacion.periodo.fecha_inicio).split('-')[0])
             : '';
-          return year ? `${name}-${year}` : name;
+          return year;
         })(),
         catequistas: catequistasNombres,
         fechas: fechasOrdenadas,
